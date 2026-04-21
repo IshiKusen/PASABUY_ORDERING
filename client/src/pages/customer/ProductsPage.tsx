@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Search, MessageSquare, ShoppingCart, SlidersHorizontal, X } from 'lucide-react';
+import { Search, MessageSquare, ShoppingCart } from 'lucide-react';
 import { productsApi, categoriesApi, configApi } from '../../utils/api';
 import { useCartStore } from '../../store/cartStore';
 

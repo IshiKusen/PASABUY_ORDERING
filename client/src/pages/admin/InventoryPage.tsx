@@ -187,7 +187,7 @@ export const InventoryPage: React.FC = () => {
     }
   };
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>, isCamera = false) => {
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
       const file = e.target.files[0];
       if (targetVariantIndex !== null) {
@@ -398,18 +398,6 @@ export const InventoryPage: React.FC = () => {
     setFormVariants(updated);
   };
 
-  const handleVariantImageChange = (index: number, e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files[0]) {
-      const file = e.target.files[0];
-      const updated = [...formVariants];
-      updated[index] = { 
-        ...updated[index], 
-        image_file: file, 
-        image_preview: URL.createObjectURL(file) 
-      };
-      setFormVariants(updated);
-    }
-  };
 
   // Save product (Create or Update)
   const handleSave = async (e: React.FormEvent) => {
@@ -721,7 +709,7 @@ export const InventoryPage: React.FC = () => {
                   )}
                 </div>
                 <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={(e) => handleFileChange(e)} />
-                <input ref={cameraInputRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={(e) => handleFileChange(e, true)} />
+                <input ref={cameraInputRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={(e) => handleFileChange(e)} />
               </div>
 
               {/* Fields */}
@@ -870,7 +858,7 @@ export const InventoryPage: React.FC = () => {
                              </div>
                             {variant.image_preview || (variant.image_path && getImageUrl(variant.image_path)) ? (
                               <img 
-                                src={variant.image_preview || getImageUrl(variant.image_path)} 
+                                src={variant.image_preview || (variant.image_path ? getImageUrl(variant.image_path) : '')} 
                                 alt="V" 
                                 className="w-full h-full object-cover" 
                               />

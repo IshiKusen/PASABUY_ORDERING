@@ -6,4 +6,5 @@ dist/
 build/
 uploads/
 *.log
-
+/assets/
+/scratch/

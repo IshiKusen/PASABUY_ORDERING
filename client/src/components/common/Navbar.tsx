@@ -1,5 +1,5 @@
 import React from 'react';
-import { ShoppingCart, UserCircle, Menu, Moon, Sun, Package, X, Home } from 'lucide-react';
+import { ShoppingCart, UserCircle, Menu, Moon, Sun, Package, X } from 'lucide-react';
 import { Link, useLocation } from 'react-router-dom';
 import { useCartStore } from '../../store/cartStore';
 import { useAuthStore } from '../../store/authStore';

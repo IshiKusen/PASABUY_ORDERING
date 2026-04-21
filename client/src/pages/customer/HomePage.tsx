@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { ShoppingCart, ArrowRight, Package, Truck, CheckCircle, MessageSquare, Clock, Shield, Star, ChevronRight, Download, Smartphone } from 'lucide-react';
+import { ShoppingCart, ArrowRight, Package, Truck, CheckCircle, MessageSquare, Clock, Shield, Star, ChevronRight, Smartphone } from 'lucide-react';
 import { productsApi, configApi } from '../../utils/api';
 import { useCartStore } from '../../store/cartStore';
 
@@ -45,7 +45,6 @@ export const HomePage: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
   const addItem = useCartStore((state) => state.addItem);
-  const setCartOpen = useCartStore((state) => state.setCartOpen);
 
   useEffect(() => {
     const fetchData = async () => {

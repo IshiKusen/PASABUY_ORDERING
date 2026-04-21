@@ -95,6 +95,7 @@ export const ordersApi = {
     const qs = query.toString();
     return apiFetch(`/orders${qs ? `?${qs}` : ''}`);
   },
+  list: (params?: { status?: string; search?: string; personal?: boolean }) => ordersApi.getAll(params),
 
   create: (items: { product_id: number; quantity: number }[], customer_details?: any) =>
     apiFetch('/orders', { method: 'POST', body: JSON.stringify({ items, customer_details }) }),
@@ -115,6 +116,7 @@ export const ordersApi = {
 // =============================================
 export const categoriesApi = {
   getAll: () => apiFetch('/categories'),
+  list: () => categoriesApi.getAll(),
 
   create: (name: string) =>
     apiFetch('/categories', { method: 'POST', body: JSON.stringify({ name }) }),
@@ -141,6 +143,7 @@ export const configApi = {
 // =============================================
 export const usersApi = {
   getAll: () => apiFetch('/users'),
+  list: () => usersApi.getAll(),
 
   updateRole: (id: number, role: string) =>
     apiFetch(`/users/${id}/role`, { method: 'PUT', body: JSON.stringify({ role }) }),

@@ -26,10 +26,10 @@ function App() {
           id: String(res.user.id),
           fullName: res.user.full_name,
           email: res.user.email,
-          mobile: res.user.phone,
-          address: res.user.address,
-          lat: res.user.lat,
-          lng: res.user.lng,
+          mobile: res.user.phone || '',
+          address: res.user.address || '',
+          lat: res.user.lat ? Number(res.user.lat) : undefined,
+          lng: res.user.lng ? Number(res.user.lng) : undefined,
           role: res.user.role
         });
       } catch (err) {

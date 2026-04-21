@@ -25,6 +25,13 @@ interface Order {
 
 const API_HOST = import.meta.env.VITE_API_URL || 'http://localhost:5000';
 
+const getImageUrl = (path: string | null | undefined) => {
+  if (!path || typeof path !== 'string') return 'https://images.unsplash.com/photo-1578916171728-46686eac8d58?auto=format&fit=crop&q=80';
+  if (path.startsWith('http')) return path;
+  const normalizedPath = path.startsWith('/') ? path : `/${path}`;
+  return `${API_HOST}${normalizedPath}`;
+};
+
 export const OrdersPage: React.FC = () => {
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
@@ -162,7 +169,7 @@ export const OrdersPage: React.FC = () => {
                       <div key={item.id} className="flex-shrink-0 flex items-center gap-3 bg-gray-50 dark:bg-dark-surfaceAlt p-2 rounded-2xl border border-gray-100 dark:border-gray-800 pr-4">
                         <div className="w-12 h-12 rounded-xl overflow-hidden shadow-sm">
                           <img 
-                            src={item.image_path.startsWith('http') ? item.image_path : `${API_HOST}${item.image_path}`} 
+                            src={getImageUrl(item.image_path)} 
                             alt={item.product_name} 
                             className="w-full h-full object-cover"
                           />
@@ -304,7 +311,7 @@ export const OrdersPage: React.FC = () => {
                   {selectedOrder.items.map((item) => (
                     <div key={item.id} className="flex items-center gap-4 bg-gray-50 dark:bg-dark-surfaceAlt p-3 rounded-3xl border border-gray-100 dark:border-gray-800">
                       <img 
-                        src={item.image_path.startsWith('http') ? item.image_path : `${API_HOST}${item.image_path}`} 
+                        src={getImageUrl(item.image_path)} 
                         alt={item.product_name} 
                         className="w-16 h-16 object-cover rounded-2xl shadow-sm"
                       />

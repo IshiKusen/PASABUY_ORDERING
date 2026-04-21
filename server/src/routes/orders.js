@@ -47,7 +47,15 @@ router.get('/', authenticate, async (req, res) => {
                 .from('order_items')
                 .select('*, products(*), product_variants(*)')
                 .eq('order_id', order.id);
-            order.items = items;
+            
+            // Flatten image_path and names into the item for frontend convenience
+            order.items = (items || []).map(item => ({
+                ...item,
+                product_name: item.products?.name || 'Unknown Product',
+                variant_name: item.product_variants?.variant_name,
+                image_path: item.product_variants?.image_path || item.products?.image_path
+            }));
+            
             order.customer_name = order.users?.full_name;
         }
 
@@ -117,22 +125,110 @@ router.post('/', authenticate, async (req, res) => {
 router.get('/stats', authenticate, requireAdmin, async (req, res) => {
     try {
         const { count: total_orders } = await supabase.from('orders').select('*', { count: 'exact', head: true });
-        const { data: sales } = await supabase.from('orders').select('total').neq('status', 'Pending');
+        const { data: orders } = await supabase.from('orders').select('total, status');
         const { count: total_customers } = await supabase.from('users').select('*', { count: 'exact', head: true }).eq('role', 'customer');
         
-        const total_revenue = sales.reduce((sum, o) => sum + o.total, 0);
+        // Calculate total revenue from non-cancelled/non-pending orders (or all confirmed)
+        const total_revenue = (orders || []).reduce((sum, o) => {
+            if (o.status !== 'Cancelled' && o.status !== 'Pending') {
+                return sum + (Number(o.total) || 0);
+            }
+            return sum;
+        }, 0);
 
-        res.json({ total_orders, total_revenue, total_customers });
+        // Status breakdown for dashboard charts/stats
+        const statusMap = {};
+        (orders || []).forEach(o => {
+            statusMap[o.status] = (statusMap[o.status] || 0) + 1;
+        });
+
+        const status_breakdown = Object.keys(statusMap).map(status => ({
+            status,
+            count: statusMap[status]
+        }));
+
+        res.json({ total_orders, total_revenue, total_customers, status_breakdown });
     } catch (err) {
-        res.status(500).json({ error: 'Failed' });
+        console.error('Stats error:', err);
+        res.status(500).json({ error: 'Failed to fetch stats' });
+    }
+});
+
+
+// Bulk Status Update (Admin)
+router.put('/bulk-status', authenticate, requireAdmin, async (req, res) => {
+    try {
+        const { order_ids, status } = req.body;
+        const { error } = await supabase
+            .from('orders')
+            .update({ status })
+            .in('id', order_ids);
+
+        if (error) throw error;
+        res.json({ message: 'Bulk update successful' });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// Cancel Order (User/Admin)
+router.put('/:id/cancel', authenticate, async (req, res) => {
+    try {
+        const { reason } = req.body;
+        const orderId = req.params.id;
+
+        // Check if order belongs to user or is admin
+        const { data: order, error: fetchErr } = await supabase
+            .from('orders')
+            .select('*')
+            .eq('id', orderId)
+            .single();
+
+        if (fetchErr || !order) throw new Error('Order not found');
+
+        if (req.user.role !== 'admin' && order.user_id !== req.user.id) {
+            return res.status(403).json({ error: 'Unauthorized' });
+        }
+
+        if (order.status === 'Cancelled' || order.status === 'Delivered') {
+            return res.status(400).json({ error: 'Order cannot be cancelled at this stage' });
+        }
+
+        const { error: updateErr } = await supabase
+            .from('orders')
+            .update({ status: 'Cancelled', cancellation_reason: reason })
+            .eq('id', orderId);
+
+        if (updateErr) throw updateErr;
+
+        // Replenish Stock
+        const { data: items } = await supabase.from('order_items').select('*').eq('order_id', orderId);
+        for (const item of items) {
+            if (item.variant_id) {
+                // We'll need an addition rpc or just use negative qty in deduct?
+                // For safety, let's call a different rpc or direct update
+                await supabase.rpc('add_variant_stock', { v_id: item.variant_id, qty: item.quantity });
+            } else {
+                await supabase.rpc('add_product_stock', { p_id: item.product_id, qty: item.quantity });
+            }
+        }
+
+        res.json({ message: 'Order cancelled and stock replenished' });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
     }
 });
 
 // Update Status
 router.put('/:id/status', authenticate, requireAdmin, async (req, res) => {
-    const { status, delivery_date } = req.body;
-    await supabase.from('orders').update({ status, delivery_date }).eq('id', req.params.id);
-    res.json({ message: 'Updated' });
+    try {
+        const { status, delivery_date } = req.body;
+        await supabase.from('orders').update({ status, delivery_date }).eq('id', req.params.id);
+        res.json({ message: 'Updated' });
+    } catch (err) {
+        res.status(500).json({ error: 'Failed' });
+    }
 });
 
 module.exports = router;
+

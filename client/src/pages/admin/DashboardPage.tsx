@@ -36,13 +36,14 @@ export const DashboardPage: React.FC = () => {
         ]);
         
         setStats(statsData);
-        setRecentOrders(ordersData.orders.slice(0, 5)); // First 5 orders
-        setSystemConfig(configData.config);
+        setRecentOrders(ordersData?.orders?.slice(0, 5) || []); // First 5 orders or empty array
+        setSystemConfig(configData?.config || null);
       } catch (err) {
         console.error('Failed to load dashboard data:', err);
       } finally {
         setLoading(false);
       }
+
     };
 
     fetchData();
@@ -56,7 +57,8 @@ export const DashboardPage: React.FC = () => {
     );
   }
 
-  const pendingCount = stats.status_breakdown.find(s => s.status === 'Pending')?.count || 0;
+  const pendingCount = stats.status_breakdown?.find(s => s.status === 'Pending')?.count || 0;
+
 
   const statCards = [
     { label: 'Total Customers', value: stats.total_customers, icon: <Users size={24} />, color: 'bg-blue-500', trend: 'Users registered' },

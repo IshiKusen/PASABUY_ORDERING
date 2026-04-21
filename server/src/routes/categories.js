@@ -26,25 +26,61 @@ router.get('/', async (req, res) => {
 router.post('/', authenticate, requireAdmin, async (req, res) => {
   try {
     const { name } = req.body;
+    
+    // Use upsert to handle cases where category already exists
+    // We match by 'name' and return the record
     const { data: category, error } = await supabase
       .from('categories')
-      .insert([{ name }])
+      .upsert({ name }, { onConflict: 'name' })
       .select()
       .single();
 
     if (error) throw error;
     res.status(201).json({ category });
   } catch (err) {
-    res.status(500).json({ error: 'Failed to create category.' });
+    console.error('Category creation error:', err);
+    res.status(500).json({ error: 'Failed to create or sync category.' });
   }
 });
+
 
 // DELETE /api/categories/:id - Delete category (admin only)
 router.delete('/:id', authenticate, requireAdmin, async (req, res) => {
   try {
-    res.json({ message: 'Category deleted.' });
+    const { id } = req.params;
+    const { error } = await supabase
+      .from('categories')
+      .delete()
+      .eq('id', id);
+
+    if (error) throw error;
+    res.json({ message: 'Category deleted successfully.' });
   } catch (err) {
+    console.error('Delete category error:', err);
     res.status(500).json({ error: 'Failed to delete category.' });
+  }
+});
+
+// UPDATE /api/categories/:id - Update category name (admin only)
+router.put('/:id', authenticate, requireAdmin, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { name } = req.body;
+    
+    if (!name) return res.status(400).json({ error: 'Name is required' });
+
+    const { data: category, error } = await supabase
+      .from('categories')
+      .update({ name })
+      .eq('id', id)
+      .select()
+      .single();
+
+    if (error) throw error;
+    res.json({ category, message: 'Category updated successfully.' });
+  } catch (err) {
+    console.error('Update category error:', err);
+    res.status(500).json({ error: 'Failed to update category.' });
   }
 });
 

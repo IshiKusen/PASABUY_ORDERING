@@ -1,7 +1,6 @@
 const express = require('express');
 const multer = require('multer');
 const path = require('path');
-const fs = require('fs');
 const { createClient } = require('@supabase/supabase-js');
 require('dotenv').config();
 
@@ -9,23 +8,36 @@ const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_ANO
 const { authenticate, requireAdmin } = require('../middleware/auth');
 const router = express.Router();
 
-// Multer config for image uploads (Still local for now, can be moved to Supabase Storage later)
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    const dir = path.join(__dirname, '../../uploads/products');
-    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-    cb(null, dir);
-  },
-  filename: (req, file, cb) => {
-    const uniqueName = `product_${Date.now()}${path.extname(file.originalname)}`;
-    cb(null, uniqueName);
-  },
-});
-
+// Memory storage for cloud uploads
+const storage = multer.memoryStorage();
 const upload = multer({
   storage,
   limits: { fileSize: 5 * 1024 * 1024 },
 });
+
+/**
+ * Helper to upload a file to Supabase Storage
+ * Returns the public URL of the uploaded file
+ */
+const uploadToSupabase = async (file) => {
+  // Use a flat structure in the bucket for simplicity
+  const fileName = `${Date.now()}_${Math.random().toString(36).substring(7)}${path.extname(file.originalname)}`;
+
+  const { data, error } = await supabase.storage
+    .from('products')
+    .upload(fileName, file.buffer, {
+      contentType: file.mimetype,
+      upsert: false
+    });
+
+  if (error) throw error;
+
+  const { data: { publicUrl } } = supabase.storage
+    .from('products')
+    .getPublicUrl(fileName);
+
+  return publicUrl;
+};
 
 // GET /api/products - List all active products (public)
 router.get('/', async (req, res) => {
@@ -34,30 +46,35 @@ router.get('/', async (req, res) => {
     
     let query = supabase
       .from('products')
-      .select('*, categories!inner(name), product_variants(*)')
+      .select('*, categories(name), product_variants(*)')
       .eq('is_active', true);
-
+    
     if (category && category !== 'All') {
-      query = query.eq('categories.name', category);
+      const { data: cat } = await supabase.from('categories').select('id').eq('name', category).single();
+      if (cat) query = query.eq('category_id', cat.id);
     }
-
+    
     if (search) {
-      query = query.or(`name.ilike.%${search}%,description.ilike.%${search}%`);
+      query = query.ilike('name', `%${search}%`);
     }
 
-    const { data: products, error } = await query.order('created_at', { ascending: false });
-
+    const { data: products, error } = await query.order('name');
     if (error) throw error;
 
-    const productsWithVariants = products.map(p => {
-      const variants = p.product_variants || [];
-      const stats = {
-        min_price: variants.length > 0 ? Math.min(...variants.map(v => Number(v.price_php))) : Number(p.price_php),
-        max_price: variants.length > 0 ? Math.max(...variants.map(v => Number(v.price_php))) : Number(p.price_php),
-        has_variants: variants.length > 0,
-        category_name: p.categories?.name
-      };
-      return { ...p, ...stats, variants };
+    const productsWithVariants = (products || []).map(p => {
+        const variants = p.product_variants || [];
+        const prices = variants.length > 0 
+            ? variants.map(v => Number(v.price_php))
+            : [Number(p.price_php)];
+        
+        return {
+            ...p,
+            variants,
+            category_name: p.categories?.name,
+            has_variants: variants.length > 0,
+            min_price: Math.min(...prices),
+            max_price: Math.max(...prices)
+        };
     });
 
     res.json({ products: productsWithVariants });
@@ -66,6 +83,7 @@ router.get('/', async (req, res) => {
     res.status(500).json({ error: 'Failed to fetch products.' });
   }
 });
+
 
 // GET /api/products/:id - Get single product
 router.get('/:id', async (req, res) => {
@@ -87,8 +105,13 @@ router.get('/:id', async (req, res) => {
 router.post('/', authenticate, requireAdmin, upload.any(), async (req, res) => {
   try {
     const { name, description, price_php, price_jpy, category_id, stock } = req.body;
+    
+    // Handle main product image
+    let image_path = req.body.image_path || null;
     const baseFile = req.files.find(f => f.fieldname === 'image');
-    const image_path = baseFile ? `/uploads/products/${baseFile.filename}` : null;
+    if (baseFile) {
+      image_path = await uploadToSupabase(baseFile);
+    }
 
     const { data: product, error } = await supabase
       .from('products')
@@ -105,21 +128,31 @@ router.post('/', authenticate, requireAdmin, upload.any(), async (req, res) => {
 
     if (error) throw error;
 
+    // Handle variants
     if (req.body.variants) {
-      const variants = JSON.parse(req.body.variants).map((v, i) => {
+      const variantsData = JSON.parse(req.body.variants);
+      const variantsToInsert = [];
+
+      for (let i = 0; i < variantsData.length; i++) {
+        const v = variantsData[i];
+        let vImagePath = v.image_path || null;
         const variantFile = req.files.find(f => f.fieldname === `variant_image_${i}`);
-        return {
+        if (variantFile) {
+          vImagePath = await uploadToSupabase(variantFile);
+        }
+
+        variantsToInsert.push({
           product_id: product.id,
           variant_name: v.variant_name,
           price_php: Number(v.price_php) || 0,
           price_jpy: Number(v.price_jpy) || null,
           stock: Number(v.stock) || 0,
-          image_path: variantFile ? `/uploads/products/${variantFile.filename}` : (v.image_path || null)
-        };
-      });
+          image_path: vImagePath
+        });
+      }
 
-      if (variants.length > 0) {
-        const { error: vError } = await supabase.from('product_variants').insert(variants);
+      if (variantsToInsert.length > 0) {
+        const { error: vError } = await supabase.from('product_variants').insert(variantsToInsert);
         if (vError) throw vError;
       }
     }
@@ -127,23 +160,123 @@ router.post('/', authenticate, requireAdmin, upload.any(), async (req, res) => {
     res.status(201).json({ product });
   } catch (err) {
     console.error('Create product error:', err);
-    res.status(500).json({ error: 'Failed' });
+    res.status(500).json({ error: err.message });
   }
 });
 
-// DELETE /api/products/:id - Soft delete
-router.delete('/:id', authenticate, requireAdmin, async (req, res) => {
+// PATCH /api/products/:id - Update product (admin)
+router.patch('/:id', authenticate, requireAdmin, upload.any(), async (req, res) => {
   try {
+    const productId = req.params.id;
+    const { name, description, price_php, price_jpy, category_id, stock } = req.body;
+
+    // Handle main product image
+    let image_path = req.body.image_path; // retain existing if not new
+    const baseFile = req.files.find(f => f.fieldname === 'image');
+    if (baseFile) {
+      image_path = await uploadToSupabase(baseFile);
+    }
+
     const { error } = await supabase
       .from('products')
-      .update({ is_active: false })
-      .eq('id', req.params.id);
+      .update({
+        name, description,
+        price_php: Number(price_php),
+        price_jpy: Number(price_jpy) || null,
+        category_id: Number(category_id),
+        stock: Number(stock) || 0,
+        image_path
+      })
+      .eq('id', productId);
 
     if (error) throw error;
-    res.json({ message: 'Deleted' });
+
+    // Handle variants (Complex update: delete old, insert new or update)
+    if (req.body.variants) {
+      const variantsData = JSON.parse(req.body.variants);
+      
+      // For simplicity in a cloud setting, we'll sync by deleting variants not in the new list
+      // and updating/inserting the rest. 
+      // Professional approach: separate variant IDs.
+      
+      // 1. Delete existing variants for this product to do a clean sync if they don't have IDs
+      // (Or better: manage by ID)
+      const existingVariantIds = variantsData.filter(v => v.id).map(v => v.id);
+      if (existingVariantIds.length > 0) {
+        await supabase.from('product_variants').delete().eq('product_id', productId).not('id', 'in', `(${existingVariantIds.join(',')})`);
+      } else {
+        await supabase.from('product_variants').delete().eq('product_id', productId);
+      }
+
+      for (let i = 0; i < variantsData.length; i++) {
+        const v = variantsData[i];
+        let vImagePath = v.image_path || null;
+        const variantFile = req.files.find(f => f.fieldname === `variant_image_${i}`);
+        if (variantFile) {
+          vImagePath = await uploadToSupabase(variantFile);
+        }
+
+        const variantObj = {
+          product_id: productId,
+          variant_name: v.variant_name,
+          price_php: Number(v.price_php) || 0,
+          price_jpy: Number(v.price_jpy) || null,
+          stock: Number(v.stock) || 0,
+          image_path: vImagePath
+        };
+
+        if (v.id) {
+          await supabase.from('product_variants').update(variantObj).eq('id', v.id);
+        } else {
+          await supabase.from('product_variants').insert([variantObj]);
+        }
+      }
+    }
+
+    res.json({ message: 'Updated successfully' });
   } catch (err) {
-    res.status(500).json({ error: 'Failed' });
+    console.error('Update product error:', err);
+    res.status(500).json({ error: err.message });
   }
 });
 
+// DELETE /api/products/:id - Smart Delete
+router.delete('/:id', authenticate, requireAdmin, async (req, res) => {
+  const productId = req.params.id;
+  try {
+    // 1. Attempt Hard Delete (if no orders exist)
+    // First, delete variants (they CASCADE anyway, but good to be explicit)
+    await supabase.from('product_variants').delete().eq('product_id', productId);
+    
+    const { error: deleteError } = await supabase
+      .from('products')
+      .delete()
+      .eq('id', productId);
+
+    if (deleteError) {
+      // Check if it's a foreign key constraint error (PostgreSQL error code 23503)
+      if (deleteError.code === '23503') {
+        console.log(`Product ${productId} has dependent orders. Performing soft delete instead.`);
+        
+        // 2. Fallback: Soft Delete
+        const { error: softDeleteError } = await supabase
+          .from('products')
+          .update({ is_active: false })
+          .eq('id', productId);
+
+        if (softDeleteError) throw softDeleteError;
+        return res.json({ message: 'Product hidden (has existing orders)' });
+      }
+      throw deleteError;
+    }
+
+    res.json({ message: 'Product permanently deleted' });
+  } catch (err) {
+    console.error('Delete error:', err);
+    res.status(500).json({ error: 'Failed to remove product' });
+  }
+});
+
+
 module.exports = router;
+

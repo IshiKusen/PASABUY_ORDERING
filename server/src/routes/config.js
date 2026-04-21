@@ -27,8 +27,8 @@ router.get('/', async (req, res) => {
   }
 });
 
-// POST /api/config - Update config keys (admin)
-router.post('/', authenticate, requireAdmin, async (req, res) => {
+// PUT /api/config - Update config keys (admin)
+router.put('/', authenticate, requireAdmin, async (req, res) => {
   try {
     const updates = req.body; // { key: value, ... }
     const entries = Object.entries(updates).map(([key, value]) => ({

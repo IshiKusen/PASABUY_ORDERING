@@ -32,6 +32,13 @@ interface Product {
 
 const API_HOST = import.meta.env.VITE_API_URL || 'http://localhost:5000';
 
+const getImageUrl = (path: string | null | undefined) => {
+  if (!path || typeof path !== 'string') return 'https://images.unsplash.com/photo-1578916171728-46686eac8d58?auto=format&fit=crop&q=80';
+  if (path.startsWith('http')) return path;
+  const normalizedPath = path.startsWith('/') ? path : `/${path}`;
+  return `${API_HOST}${normalizedPath}`;
+};
+
 export const HomePage: React.FC = () => {
   const [featuredProducts, setFeaturedProducts] = useState<Product[]>([]);
   const [config, setConfig] = useState<any>({});
@@ -356,7 +363,7 @@ export const HomePage: React.FC = () => {
                 >
                   <div className="relative pt-[100%] bg-gray-50 dark:bg-dark-surfaceAlt overflow-hidden">
                     <img
-                      src={product.image_path ? `${API_HOST}${product.image_path}` : 'https://images.unsplash.com/photo-1578916171728-46686eac8d58?auto=format&fit=crop&q=80'}
+                      src={getImageUrl(product.image_path)}
                       alt={product.name}
                       className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                       loading="lazy"

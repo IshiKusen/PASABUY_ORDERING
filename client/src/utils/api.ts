@@ -77,7 +77,7 @@ export const productsApi = {
     apiFetch('/products', { method: 'POST', body: formData }),
 
   update: (id: number, formData: FormData) =>
-    apiFetch(`/products/${id}`, { method: 'PUT', body: formData }),
+    apiFetch(`/products/${id}`, { method: 'PATCH', body: formData }),
 
   delete: (id: number) =>
     apiFetch(`/products/${id}`, { method: 'DELETE' }),
@@ -118,6 +118,9 @@ export const categoriesApi = {
 
   create: (name: string) =>
     apiFetch('/categories', { method: 'POST', body: JSON.stringify({ name }) }),
+
+  update: (id: number, data: { name: string }) =>
+    apiFetch(`/categories/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
 
   delete: (id: number) =>
     apiFetch(`/categories/${id}`, { method: 'DELETE' }),

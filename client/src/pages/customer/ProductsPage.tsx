@@ -36,6 +36,14 @@ interface Category {
 
 const API_HOST = import.meta.env.VITE_API_URL || 'http://localhost:5000';
 
+const getImageUrl = (path: string | null | undefined) => {
+  if (!path || typeof path !== 'string') return 'https://images.unsplash.com/photo-1578916171728-46686eac8d58?auto=format&fit=crop&q=80';
+  if (path.startsWith('http')) return path;
+  const normalizedPath = path.startsWith('/') ? path : `/${path}`;
+  return `${API_HOST}${normalizedPath}`;
+};
+
+
 /* ─────────────────────────────────────────────── */
 /* Variant Selection Modal                          */
 /* ─────────────────────────────────────────────── */
@@ -58,22 +66,11 @@ const VariantSelectionModal = ({
         <div className="relative p-6 border-b border-gray-100 dark:border-gray-800 flex items-center justify-between">
           <div className="flex items-center gap-4">
             <img 
-              src={
-                selectedVariant?.image_path 
-                  ? `${API_HOST}${selectedVariant.image_path}`
-                  : product.image_path 
-                    ? `${API_HOST}${product.image_path}` 
-                    : 'https://images.unsplash.com/photo-1578916171728-46686eac8d58?auto=format&fit=crop&q=80'
-              } 
+              src={selectedVariant ? getImageUrl(selectedVariant.image_path) : getImageUrl(product.image_path)} 
               className="w-16 h-16 rounded-2xl object-cover transition-all duration-300 cursor-zoom-in" 
               alt={product.name}
               onClick={() => {
-                const url = selectedVariant?.image_path 
-                  ? `${API_HOST}${selectedVariant.image_path}`
-                  : product.image_path 
-                    ? `${API_HOST}${product.image_path}` 
-                    : 'https://images.unsplash.com/photo-1578916171728-46686eac8d58?auto=format&fit=crop&q=80';
-                onImageClick(url);
+                onImageClick(selectedVariant ? getImageUrl(selectedVariant.image_path) : getImageUrl(product.image_path));
               }}
             />
             <div>
@@ -298,15 +295,13 @@ export const ProductsPage = () => {
               >
                 <div className="relative pt-[100%] bg-gray-50 dark:bg-dark-surfaceAlt overflow-hidden">
                   <img
-                    src={product.image_path ? `${API_HOST}${product.image_path}` : 'https://images.unsplash.com/photo-1578916171728-46686eac8d58?auto=format&fit=crop&q=80'}
+                    src={getImageUrl(product.image_path)}
                     alt={product.name}
                     className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-500 cursor-zoom-in"
-                    onClick={() => {
-                      const imgUrl = product.image_path ? `${API_HOST}${product.image_path}` : 'https://images.unsplash.com/photo-1578916171728-46686eac8d58?auto=format&fit=crop&q=80';
-                      setFullScreenImageUrl(imgUrl);
-                    }}
+                    onClick={() => setFullScreenImageUrl(getImageUrl(product.image_path))}
                     loading="lazy"
                   />
+
                   <div className="absolute top-3 left-3">
                     <span className="bg-white/95 dark:bg-dark-surface/95 backdrop-blur-sm px-2.5 py-1 rounded-full text-[11px] font-semibold text-gray-700 dark:text-gray-300 shadow-sm flex items-center gap-1.5">
                       <span className="w-1.5 h-1.5 rounded-full bg-green-500"></span>

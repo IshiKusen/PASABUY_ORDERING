@@ -7,6 +7,13 @@ import { ordersApi } from '../../utils/api';
 
 const API_HOST = import.meta.env.VITE_API_URL || 'http://localhost:5000';
 
+const getImageUrl = (path: string | null | undefined) => {
+  if (!path) return 'https://placehold.co/100x100/f9a8d4/831843?text=No+Img';
+  if (path.startsWith('http')) return path;
+  const normalizedPath = path.startsWith('/') ? path : `/${path}`;
+  return `${API_HOST}${normalizedPath}`;
+};
+
 export const CartDrawer: React.FC = () => {
   const { isCartOpen, setCartOpen, items, removeItem, updateQuantity, getTotalPrice, clearCart } = useCartStore();
   const { isAuthenticated, user, setLoginModalOpen } = useAuthStore();
@@ -110,7 +117,7 @@ export const CartDrawer: React.FC = () => {
               <div key={`${item.id}-${item.variantId}`} className="flex gap-4 bg-gray-50 dark:bg-dark-surfaceAlt p-3 rounded-2xl border border-gray-100 dark:border-gray-800">
                 <div className="w-20 h-20 bg-white dark:bg-dark-surface rounded-xl overflow-hidden flex-shrink-0 shadow-sm">
                   <img 
-                    src={item.imageUrl ? (item.imageUrl.startsWith('http') ? item.imageUrl : `${API_HOST}${item.imageUrl}`) : 'https://placehold.co/100x100/f9a8d4/831843?text=No+Img'} 
+                    src={getImageUrl(item.imageUrl)} 
                     alt={item.name} 
                     className="w-full h-full object-cover transition-transform duration-500 hover:scale-110"
                     onError={(e) => {

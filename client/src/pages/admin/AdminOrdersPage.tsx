@@ -22,6 +22,13 @@ const MarkerCast = Marker as any;
 
 const API_HOST = import.meta.env.VITE_API_URL || 'http://localhost:5000';
 
+const getImageUrl = (path: string | null | undefined) => {
+  if (!path || typeof path !== 'string') return 'https://placehold.co/100x100/f9a8d4/831843?text=No+Img';
+  if (path.startsWith('http')) return path;
+  const normalizedPath = path.startsWith('/') ? path : `/${path}`;
+  return `${API_HOST}${normalizedPath}`;
+};
+
 interface OrderItem {
   id: number;
   product_name: string;
@@ -264,11 +271,11 @@ export const AdminOrdersPage: React.FC = () => {
                       <div className="flex flex-col gap-1">
                         {order.items && order.items.length > 0 ? (
                             <div className="flex flex-col items-center gap-1 py-1">
-                              <div className="w-12 h-12 rounded-lg overflow-hidden bg-gray-100 dark:bg-dark-surface shrink-0 border border-gray-100 dark:border-gray-800 shadow-sm">
+                              <div className="relative group">
                                 <img 
-                                  src={order.items[0].image_path ? (order.items[0].image_path.startsWith('http') ? order.items[0].image_path : `${API_HOST}${order.items[0].image_path}`) : 'https://placehold.co/100x100/f9a8d4/831843?text=No+Img'} 
-                                  alt="product" 
-                                  className="w-full h-full object-cover"
+                                  src={getImageUrl(order.items[0]?.image_path)} 
+                                  className="w-10 h-10 rounded-xl object-cover ring-2 ring-white dark:ring-dark-surface shadow-sm transition-transform group-hover:scale-110" 
+                                  alt="Product"
                                 />
                               </div>
                               <div className="flex flex-col items-center text-center w-full min-w-0">
@@ -376,14 +383,12 @@ export const AdminOrdersPage: React.FC = () => {
                   <h3 className="text-sm font-bold text-gray-500 uppercase tracking-widest mb-4">Order Items ({selectedOrder.item_count})</h3>
                   <div className="space-y-2 bg-gray-50 dark:bg-dark-surfaceAlt p-4 rounded-xl">
                     {selectedOrder.items && selectedOrder.items.map((item) => (
-                      <div key={item.id} className="flex items-center gap-4 text-sm py-4 border-b border-gray-100 dark:border-gray-800 last:border-0">
-                        <div className="w-12 h-12 rounded-lg overflow-hidden bg-white dark:bg-dark-surface shrink-0 border border-gray-100 dark:border-gray-800">
-                          <img 
-                            src={item.image_path ? (item.image_path.startsWith('http') ? item.image_path : `${API_HOST}${item.image_path}`) : 'https://placehold.co/100x100/f9a8d4/831843?text=No+Img'} 
-                            alt={item.product_name} 
-                            className="w-full h-full object-cover"
-                          />
-                        </div>
+                      <div key={item.id} className="flex items-center gap-4 bg-gray-50 dark:bg-dark-surfaceAlt p-3 rounded-2xl border border-gray-100 dark:border-gray-800">
+                        <img 
+                          src={getImageUrl(item.image_path)} 
+                          alt="Product"
+                          className="w-14 h-14 object-cover rounded-xl shadow-sm"
+                        />
                         <div className="flex-1 flex flex-col">
                           <span className="font-bold dark:text-white">{item.product_name} x{item.quantity}</span>
                           {item.variant_name && (

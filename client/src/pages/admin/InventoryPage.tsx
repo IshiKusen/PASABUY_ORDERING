@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Plus, Search, Edit2, Trash2, Filter, Package, X, UploadCloud, ImageIcon, Loader2, Camera, RotateCw, Check } from 'lucide-react';
+import { Plus, Search, Edit2, Trash2, Filter, Package, X, UploadCloud, ImageIcon, Loader2, Camera, RotateCw, Check, Settings } from 'lucide-react';
 import { productsApi, categoriesApi } from '../../utils/api';
 
 const API_HOST = import.meta.env.VITE_API_URL || 'http://localhost:5000';
@@ -54,6 +54,9 @@ export const InventoryPage: React.FC = () => {
   const [formCategory, setFormCategory] = useState("");
   const [isNewCategory, setIsNewCategory] = useState(false);
   const [newCategoryName, setNewCategoryName] = useState("");
+  const [isCategoryManagerOpen, setIsCategoryManagerOpen] = useState(false);
+  const [editingCategoryId, setEditingCategoryId] = useState<number | null>(null);
+  const [editCategoryName, setEditCategoryName] = useState("");
   const [formStock, setFormStock] = useState("");
   const [formImageFile, setFormImageFile] = useState<File | null>(null);
   const [formImagePreview, setFormImagePreview] = useState("");
@@ -110,7 +113,7 @@ export const InventoryPage: React.FC = () => {
       setFormPriceJpy(product.price_jpy || "");
       setFormCategory(String(product.category_id));
       setFormStock(String(product.stock));
-      setFormImagePreview(product.image_path ? (product.image_path.startsWith('http') ? product.image_path : `${API_HOST}${product.image_path}`) : "");
+      setFormImagePreview(product.image_path ? getImageUrl(product.image_path) : "");
       setFormImageFile(null);
       setFormVariants(product.variants || []);
     } else {
@@ -296,6 +299,34 @@ export const InventoryPage: React.FC = () => {
     startLiveCamera(newMode);
   };
 
+  const handleEditCategory = (id: number, name: string) => {
+    setEditingCategoryId(id);
+    setEditCategoryName(name);
+  };
+
+  const handleUpdateCategory = async (id: number) => {
+    if (!editCategoryName.trim()) return;
+    try {
+      await categoriesApi.update(id, { name: editCategoryName.trim() });
+      setCategories(categories.map(cat => cat.id === id ? { ...cat, name: editCategoryName.trim() } : cat));
+      setProducts(products.map(p => p.category_id === id ? { ...p, category_name: editCategoryName.trim() } : p));
+      setEditingCategoryId(null);
+    } catch (err) {
+      alert("Failed to update category name.");
+    }
+  };
+
+  const handleDeleteCategory = async (id: number) => {
+    if (!window.confirm("Are you sure? Products assigned to this category will lose their category association.")) return;
+    try {
+      await categoriesApi.delete(id);
+      setCategories(categories.filter(cat => cat.id !== id));
+      if (Number(formCategory) === id) setFormCategory("");
+    } catch (err) {
+      alert("Failed to delete category. Make sure it's not being used by active records if constraints exist.");
+    }
+  };
+
   const capturePhoto = () => {
     if (videoRef.current && canvasRef.current) {
       const video = videoRef.current;
@@ -443,8 +474,10 @@ export const InventoryPage: React.FC = () => {
   const getImageUrl = (path: string) => {
     if (!path) return 'https://placehold.co/100x100/f9a8d4/831843?text=No+Img';
     if (path.startsWith('http')) return path;
-    return `${API_HOST}${path}`;
+    const normalizedPath = path.startsWith('/') ? path : `/${path}`;
+    return `${API_HOST}${normalizedPath}`;
   };
+
 
   const categoryList = ["All", ...categories.map(c => c.name)];
 
@@ -720,7 +753,17 @@ export const InventoryPage: React.FC = () => {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-semibold text-gray-600 dark:text-gray-400 mb-1">Category</label>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="block text-sm font-semibold text-gray-600 dark:text-gray-400">Category</label>
+                    <button 
+                      type="button" 
+                      onClick={() => setIsCategoryManagerOpen(true)}
+                      className="text-[10px] font-bold text-primary-500 hover:text-primary-600 flex items-center gap-1 uppercase tracking-wider"
+                    >
+                      <Settings size={10} />
+                      Manage Categories
+                    </button>
+                  </div>
                   {!isNewCategory ? (
                     <select 
                       className="input" 
@@ -825,9 +868,9 @@ export const InventoryPage: React.FC = () => {
                                   <UploadCloud size={16} />
                                 </button>
                              </div>
-                            {variant.image_preview || (variant.image_path && `${API_HOST}${variant.image_path}`) ? (
+                            {variant.image_preview || (variant.image_path && getImageUrl(variant.image_path)) ? (
                               <img 
-                                src={variant.image_preview || `${API_HOST}${variant.image_path}`} 
+                                src={variant.image_preview || getImageUrl(variant.image_path)} 
                                 alt="V" 
                                 className="w-full h-full object-cover" 
                               />
@@ -983,6 +1026,84 @@ export const InventoryPage: React.FC = () => {
             </div>
             
             <p className="text-white/40 text-[10px] font-black uppercase tracking-[0.3em]">Tap to capture product image</p>
+          </div>
+        </div>
+      )}
+      {/* Category Manager Modal */}
+      {isCategoryManagerOpen && (
+        <div className="fixed inset-0 z-[110] flex items-center justify-center backdrop-blur-md bg-black/40 p-4 animate-fade-in">
+          <div className="bg-white dark:bg-dark-surface w-full max-w-md rounded-3xl shadow-2xl overflow-hidden animate-scale-up border border-gray-100 dark:border-gray-800">
+            <div className="flex justify-between items-center p-6 border-b dark:border-gray-800 bg-gray-50/50 dark:bg-dark-surfaceAlt/50">
+              <h2 className="text-lg font-black dark:text-white uppercase tracking-tight">Manage Categories</h2>
+              <button 
+                onClick={() => { setIsCategoryManagerOpen(false); setEditingCategoryId(null); }} 
+                className="p-2 text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-full transition-colors"
+              >
+                <X size={20} />
+              </button>
+            </div>
+            
+            <div className="p-6 max-h-[60vh] overflow-y-auto space-y-3">
+              {categories.map((cat) => (
+                <div key={cat.id} className="flex items-center gap-3 bg-gray-50 dark:bg-dark-surfaceAlt p-3 rounded-2xl border border-gray-100 dark:border-gray-800 group">
+                  {editingCategoryId === cat.id ? (
+                    <div className="flex-1 flex gap-2">
+                      <input 
+                        type="text" 
+                        value={editCategoryName} 
+                        onChange={e => setEditCategoryName(e.target.value)}
+                        className="input h-9 text-sm"
+                        autoFocus
+                      />
+                      <button onClick={() => handleUpdateCategory(cat.id)} className="p-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-all shadow-md shadow-green-500/20">
+                        <Check size={16} />
+                      </button>
+                      <button onClick={() => setEditingCategoryId(null)} className="p-2 bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-300 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-600 transition-all">
+                        <X size={16} />
+                      </button>
+                    </div>
+                  ) : (
+                    <>
+                      <div className="flex-1 min-w-0">
+                        <p className="font-bold text-sm dark:text-white truncate">{cat.name}</p>
+                      </div>
+                      <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <button 
+                          onClick={() => handleEditCategory(cat.id, cat.name)} 
+                          className="p-2 text-gray-400 hover:text-primary-500 hover:bg-primary-50 dark:hover:bg-primary-900/20 rounded-lg transition-all"
+                          title="Rename"
+                        >
+                          <Edit2 size={14} />
+                        </button>
+                        <button 
+                          onClick={() => handleDeleteCategory(cat.id)} 
+                          className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-all"
+                          title="Delete"
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      </div>
+                    </>
+                  )}
+                </div>
+              ))}
+              
+              {categories.length === 0 && (
+                <div className="text-center py-8 text-gray-400 italic text-sm">
+                  No categories found.
+                </div>
+              )}
+            </div>
+
+            <div className="p-6 bg-gray-50/50 dark:bg-dark-surfaceAlt/50 border-t dark:border-gray-800">
+               <button 
+                 onClick={() => { setIsCategoryManagerOpen(false); setIsNewCategory(true); }}
+                 className="w-full btn-primary py-3 rounded-2xl flex items-center justify-center gap-2 shadow-lg shadow-primary-500/20"
+               >
+                 <Plus size={18} />
+                 Add New From Form
+               </button>
+            </div>
           </div>
         </div>
       )}

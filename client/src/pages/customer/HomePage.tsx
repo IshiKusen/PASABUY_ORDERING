@@ -90,6 +90,27 @@ export const HomePage: React.FC = () => {
     return `${hours}h left`;
   };
 
+  const formatETARange = () => {
+    if (!config.eta_start) return 'TBD';
+    
+    const start = new Date(config.eta_start);
+    const startMonth = start.toLocaleString('default', { month: 'long' });
+    const startDate = start.getDate();
+    
+    if (config.eta_end) {
+      const end = new Date(config.eta_end);
+      const endMonth = end.toLocaleString('default', { month: 'long' });
+      const endDate = end.getDate();
+      
+      if (startMonth === endMonth) {
+        return `${startMonth} ${startDate}-${endDate}`;
+      }
+      return `${startMonth} ${startDate} - ${endMonth} ${endDate}`;
+    }
+    
+    return `${startMonth} ${startDate}`;
+  };
+
   const handleAddToCart = (product: Product) => {
     if (product.has_variants) return; // variants need the modal on Products page
     addItem({
@@ -242,9 +263,7 @@ export const HomePage: React.FC = () => {
                         <div>
                           <p className="text-xs font-bold text-gray-500 dark:text-gray-400">ETA Delivery</p>
                           <p className="text-sm font-bold text-gray-800 dark:text-gray-200">
-                            {config.eta_start
-                              ? new Date(config.eta_start).toLocaleDateString(undefined, { month: 'long', day: 'numeric' })
-                              : 'TBD'}
+                            {formatETARange()}
                           </p>
                         </div>
                       </div>

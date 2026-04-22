@@ -19,7 +19,7 @@ import {
   RefreshCw
 } from 'lucide-react';
 import { Html5Qrcode, Html5QrcodeSupportedFormats } from 'html5-qrcode';
-import { productsApi, categoriesApi } from '../../utils/api';
+import { productsApi, categoriesApi, configApi } from '../../utils/api';
 import { getImageUrl } from '../../utils/image';
 import BarcodeGenerator from '../../components/common/BarcodeGenerator';
 
@@ -99,8 +99,7 @@ export const InventoryPage: React.FC = () => {
   const [isFlashing, setIsFlashing] = useState(false);
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
-  // Barcode Scanner States
-  // (Using local discovery states instead of global lookupLoading for now)
+  const [jpyToPhpRate, setJpyToPhpRate] = useState<number>(0.38);
 
   // Load data
   useEffect(() => {
@@ -110,12 +109,17 @@ export const InventoryPage: React.FC = () => {
   const loadData = async () => {
     try {
       setLoading(true);
-      const [prodData, catData] = await Promise.all([
+      const [prodData, catData, configData] = await Promise.all([
         productsApi.getAll({ category: activeCategoryFilter, search: searchQuery }),
         categoriesApi.getAll(),
+        configApi.get()
       ]);
       setProducts(prodData.products);
       setCategories(catData.categories);
+      
+      if (configData.config && configData.config.jpy_to_php_rate) {
+        setJpyToPhpRate(Number(configData.config.jpy_to_php_rate));
+      }
     } catch (err) {
       console.error('Load error:', err);
     } finally {
@@ -247,12 +251,10 @@ export const InventoryPage: React.FC = () => {
   };
 
   // Currency Conversion
-  const JPY_TO_PHP_RATE = 0.38;
-
   const handlePhpChange = (val: string) => {
     setFormPricePhp(val);
-    if (val && !isNaN(Number(val))) {
-      setFormPriceJpy((Number(val) / JPY_TO_PHP_RATE).toFixed(0));
+    if (val && !isNaN(Number(val)) && jpyToPhpRate > 0) {
+      setFormPriceJpy((Number(val) / jpyToPhpRate).toFixed(0));
     } else {
       setFormPriceJpy("");
     }
@@ -260,8 +262,8 @@ export const InventoryPage: React.FC = () => {
 
   const handleJpyChange = (val: string) => {
     setFormPriceJpy(val);
-    if (val && !isNaN(Number(val))) {
-      setFormPricePhp((Number(val) * JPY_TO_PHP_RATE).toFixed(2));
+    if (val && !isNaN(Number(val)) && jpyToPhpRate > 0) {
+      setFormPricePhp((Number(val) * jpyToPhpRate).toFixed(2));
     } else {
       setFormPricePhp("");
     }

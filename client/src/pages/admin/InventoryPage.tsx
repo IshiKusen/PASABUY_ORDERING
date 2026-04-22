@@ -17,7 +17,7 @@ import {
   ScanBarcode, 
   Zap 
 } from 'lucide-react';
-import { Html5Qrcode } from 'html5-qrcode';
+import { Html5Qrcode, Html5QrcodeSupportedFormats } from 'html5-qrcode';
 import { productsApi, categoriesApi } from '../../utils/api';
 
 const API_HOST = import.meta.env.VITE_API_URL || 'http://localhost:5000';
@@ -237,17 +237,28 @@ export const InventoryPage: React.FC = () => {
       let t2: any;
 
       const timer = setTimeout(() => {
-        const scanner = new Html5Qrcode("barcode-reader");
+        // Explicitly define formats to support Japanese JAN (EAN-13) and UPC-A
+        const scanner = new Html5Qrcode("barcode-reader", {
+          formatsToSupport: [ 
+            Html5QrcodeSupportedFormats.EAN_13, 
+            Html5QrcodeSupportedFormats.UPC_A, 
+            Html5QrcodeSupportedFormats.EAN_8,
+            Html5QrcodeSupportedFormats.UPC_E,
+            Html5QrcodeSupportedFormats.CODE_128
+          ],
+          verbose: false
+        });
         barcodeScannerRef.current = scanner;
+        
         const config = { 
-          fps: 30,
+          fps: 60, // Ultra-high frame rate for instant capture
           qrbox: (viewWidth: number, viewHeight: number) => {
-            return { width: viewWidth * 0.9, height: viewHeight * 0.5 }; // Bigger box
+            return { width: viewWidth * 0.9, height: viewHeight * 0.6 }; // Even bigger box
           },
           aspectRatio: 1.0,
           disableFlip: true,
           experimentalFeatures: {
-            useBarCodeDetectorIfSupported: true // TURBO MODE: Uses hardware scanner
+            useBarCodeDetectorIfSupported: true 
           }
         };
         

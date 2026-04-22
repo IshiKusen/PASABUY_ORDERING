@@ -192,6 +192,9 @@ export const InventoryPage: React.FC = () => {
       cleanupAllCameras();
       setScanTip("Align barcode in the center box...");
       
+      let t1: any;
+      let t2: any;
+
       const timer = setTimeout(() => {
         const scanner = new Html5Qrcode("barcode-reader");
         barcodeScannerRef.current = scanner;
@@ -204,8 +207,8 @@ export const InventoryPage: React.FC = () => {
         };
         
         // Show tips if taking too long
-        const tipTimer = setTimeout(() => setScanTip("Try moving slightly away or check lighting..."), 5000);
-        const tipTimer2 = setTimeout(() => setScanTip("Ensure barcode is flat and centered!"), 10000);
+        t1 = setTimeout(() => setScanTip("Try moving slightly away or check lighting..."), 5000);
+        t2 = setTimeout(() => setScanTip("Ensure barcode is flat and centered!"), 10000);
         
         scanner.start(
           { 
@@ -235,6 +238,8 @@ export const InventoryPage: React.FC = () => {
       
       return () => {
         clearTimeout(timer);
+        clearTimeout(t1);
+        clearTimeout(t2);
         if (barcodeScannerRef.current) {
           if (barcodeScannerRef.current.isScanning) {
             barcodeScannerRef.current.stop().catch(e => console.error(e));

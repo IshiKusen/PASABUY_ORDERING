@@ -1,5 +1,22 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Plus, Search, Edit2, Trash2, Filter, Package, X, UploadCloud, ImageIcon, Loader2, Camera, RotateCw, Check, Settings, ScanBarcode } from 'lucide-react';
+import { 
+  Plus, 
+  Search, 
+  Edit2, 
+  Trash2, 
+  Filter, 
+  Package, 
+  X, 
+  UploadCloud, 
+  ImageIcon, 
+  Loader2, 
+  Camera, 
+  RotateCw, 
+  Check, 
+  Settings, 
+  ScanBarcode, 
+  Zap 
+} from 'lucide-react';
 import { Html5Qrcode } from 'html5-qrcode';
 import { productsApi, categoriesApi } from '../../utils/api';
 
@@ -176,6 +193,7 @@ export const InventoryPage: React.FC = () => {
 
   const barcodeScannerRef = useRef<Html5Qrcode | null>(null);
 
+  const [scanTip, setScanTip] = useState("");
   const [isTorchOn, setIsTorchOn] = useState(false);
   const [hasTorch, setHasTorch] = useState(false);
 
@@ -222,9 +240,13 @@ export const InventoryPage: React.FC = () => {
           () => {} 
         ).then(() => {
           // Check if torch is supported
-          const track = scanner.getRunningTrack();
-          if (track && track.getCapabilities && track.getCapabilities().torch) {
-            setHasTorch(true);
+          try {
+            const track = (scanner as any).getRunningTrack();
+            if (track && track.getCapabilities && track.getCapabilities().torch) {
+              setHasTorch(true);
+            }
+          } catch (e) {
+            console.log("Torch not supported on this track", e);
           }
         }).catch(err => {
           console.error("Scanner start error:", err);

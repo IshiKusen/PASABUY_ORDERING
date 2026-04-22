@@ -239,34 +239,39 @@ export const InventoryPage: React.FC = () => {
       const timer = setTimeout(() => {
         const scanner = new Html5Qrcode("barcode-reader");
         barcodeScannerRef.current = scanner;
-        
         const config = { 
           fps: 30,
           qrbox: (viewWidth: number, viewHeight: number) => {
-            return { width: viewWidth * 0.9, height: viewHeight * 0.4 };
+            return { width: viewWidth * 0.9, height: viewHeight * 0.5 }; // Bigger box
           },
           aspectRatio: 1.0,
-          disableFlip: true
+          disableFlip: true,
+          experimentalFeatures: {
+            useBarCodeDetectorIfSupported: true // TURBO MODE: Uses hardware scanner
+          }
         };
         
-        t1 = setTimeout(() => setScanTip("💡 TIP: Move phone 5-8 inches away until lines are sharp!"), 4000);
-        t2 = setTimeout(() => setScanTip("🔦 Use the 'FLASH' button below if it's too dark!"), 8000);
+        t1 = setTimeout(() => setScanTip("💡 TIP: Keep barcode center and steady!"), 4000);
+        t2 = setTimeout(() => setScanTip("🔦 Make sure the area is well lit!"), 8000);
         
         scanner.start(
           { facingMode: "environment" }, 
           config,
           (decodedText) => {
             if (navigator.vibrate) navigator.vibrate(100);
-            handleBarcodeLookup(decodedText);
+            setManualBarcode(decodedText); // Show the numbers in the field!
+            handleBarcodeLookup(decodedText); // Then look it up!
           },
           () => {} 
         ).then(() => {
-          // Robust Torch Check - Wait for stream to stabilize
+          // Force hasTorch to true if environment camera - most back cameras have flash
+          setHasTorch(true); 
+          
           setTimeout(() => {
             try {
               const track = (scanner as any).getRunningTrack();
               if (track && track.getCapabilities && track.getCapabilities().torch) {
-                setHasTorch(true);
+                // Keep it true
               }
             } catch (e) {
               console.log("Torch check error", e);

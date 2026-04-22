@@ -346,10 +346,40 @@ export const InventoryPage: React.FC = () => {
   // Unified Live Camera & Scanner Logic
   const startLiveCamera = async (mode: 'user' | 'environment' = 'environment') => {
     try {
+      // 1. Pre-flight Cleanup: Ensure no previous instance is running
+      if (barcodeScannerRef.current) {
+        try { await barcodeScannerRef.current.stop(); } catch(e) {}
+        barcodeScannerRef.current = null;
+      }
+
+      // 2. Check for Secure Context (HTTPS/Localhost)
+      if (!window.isSecureContext && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
+        throw new Error("SECURE_CONTEXT_REQUIRED");
+      }
+
       setIsLiveCameraOpen(true);
       setLiveDetectedCode(null);
-      setScanTip("💡 TIP: Tap screen to focus!");
+      setScanTip("🔍 Initializing Hardware...");
+
+      // 3. Smart Hardware Discovery
+      const devices = await Html5Qrcode.getCameras();
+      if (!devices || devices.length === 0) {
+        throw { name: "NotFoundError" };
+      }
+
+      // Find the best back camera (labels like 'back', 'rear', 'environment', '0', '1')
+      let targetCameraId = devices[0].id; // Fallback to first camera
       
+      if (mode === 'environment') {
+        const backCamera = devices.find(device => 
+          device.label.toLowerCase().includes('back') || 
+          device.label.toLowerCase().includes('rear') ||
+          device.label.toLowerCase().includes('environment') ||
+          device.label.toLowerCase().includes('camera 0') // Common on some Androids
+        );
+        if (backCamera) targetCameraId = backCamera.id;
+      }
+
       const scanner = new Html5Qrcode("live-camera-container", {
         formatsToSupport: [
           Html5QrcodeSupportedFormats.EAN_13,
@@ -367,11 +397,12 @@ export const InventoryPage: React.FC = () => {
         fps: 30, 
         qrbox: { width: 280, height: 160 },
         aspectRatio: 1.777778, 
-        disableFlip: true
+        disableFlip: mode === 'environment'
       };
 
+      // 4. Start using the specific Device ID for better reliability
       await scanner.start(
-        { facingMode: mode },
+        targetCameraId,
         config,
         (decodedText) => {
           setLiveDetectedCode(decodedText);
@@ -380,6 +411,7 @@ export const InventoryPage: React.FC = () => {
         () => {}
       );
 
+      setScanTip("💡 TIP: Tap screen to focus!");
       setHasTorch(true);
       
       // Tap to Focus logic
@@ -399,9 +431,22 @@ export const InventoryPage: React.FC = () => {
         }
       }, 1000);
 
-    } catch (err) {
+    } catch (err: any) {
       console.error("Camera/Scanner error:", err);
-      alert("Could not access camera. Please check permissions.");
+      
+      let errorMsg = "Could not access camera.";
+      
+      if (err.message === "SECURE_CONTEXT_REQUIRED") {
+        errorMsg = "🔒 HTTPS Required: Camera access is blocked on insecure connections. Please use HTTPS or localhost to test.";
+      } else if (err.name === "NotAllowedError" || err.name === "PermissionDeniedError") {
+        errorMsg = "🚫 Permission Denied: Please allow camera access in your browser settings.";
+      } else if (err.name === "NotFoundError" || err.name === "DevicesNotFoundError") {
+        errorMsg = "❓ Camera Not Found: No camera device detected on this system.";
+      } else if (err.name === "NotReadableError" || err.name === "TrackStartError") {
+        errorMsg = "🎥 Camera Busy: Another application might be using the camera.";
+      }
+
+      alert(errorMsg);
       setIsLiveCameraOpen(false);
     }
   };
@@ -1251,7 +1296,7 @@ export const InventoryPage: React.FC = () => {
               {/* Manual Input Overlay */}
               {showManualInput && (
                 <div className="absolute inset-0 z-[70] bg-black/90 backdrop-blur-sm flex items-center justify-center p-6 animate-in zoom-in-95 duration-200">
-                  <div className="w-full max-w-sm bg-white dark:bg-zinc-900 rounded-3xl p-6 shadow-2xl">
+                  <div className="w-full max-sm bg-white dark:bg-zinc-900 rounded-3xl p-6 shadow-2xl">
                     <h3 className="text-lg font-bold mb-4 dark:text-white">Manual Barcode</h3>
                     <input 
                       autoFocus

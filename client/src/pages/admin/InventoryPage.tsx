@@ -176,7 +176,8 @@ export const InventoryPage: React.FC = () => {
 
   const barcodeScannerRef = useRef<Html5Qrcode | null>(null);
 
-  const [scanTip, setScanTip] = useState("");
+  const [isTorchOn, setIsTorchOn] = useState(false);
+  const [hasTorch, setHasTorch] = useState(false);
 
   // Barcode Scanner Lifecycle
   useEffect(() => {
@@ -190,7 +191,8 @@ export const InventoryPage: React.FC = () => {
 
     if (isBarcodeScannerOpen) {
       cleanupAllCameras();
-      setScanTip("Align barcode in the center box...");
+      setScanTip("Move phone back (5-8 inches) for sharp focus...");
+      setIsTorchOn(false);
       
       let t1: any;
       let t2: any;
@@ -200,28 +202,31 @@ export const InventoryPage: React.FC = () => {
         barcodeScannerRef.current = scanner;
         
         const config = { 
-          fps: 30, // Maximum speed
-          qrbox: { width: 300, height: 200 }, // Better for EAN-13
+          fps: 30,
+          qrbox: { width: 320, height: 220 }, // Slightly larger box
           aspectRatio: 1.0,
           experimentalFeatures: { useBarCodeDetectorIfSupported: true }
         };
         
-        // Show tips if taking too long
-        t1 = setTimeout(() => setScanTip("Try moving slightly away or check lighting..."), 5000);
-        t2 = setTimeout(() => setScanTip("Ensure barcode is flat and centered!"), 10000);
+        t1 = setTimeout(() => setScanTip("Still blurry? Move slightly further away..."), 5000);
+        t2 = setTimeout(() => setScanTip("Try turning on the Flashlight below! 🔦"), 10000);
         
         scanner.start(
           { facingMode: "environment" }, 
           config,
           (decodedText) => {
-            // Success - Vibrate for feedback
             if (navigator.vibrate) navigator.vibrate(100);
-            
             handleBarcodeLookup(decodedText);
             scanner.stop().catch(e => console.error(e));
           },
           () => {} 
-        ).catch(err => {
+        ).then(() => {
+          // Check if torch is supported
+          const track = scanner.getRunningTrack();
+          if (track && track.getCapabilities && track.getCapabilities().torch) {
+            setHasTorch(true);
+          }
+        }).catch(err => {
           console.error("Scanner start error:", err);
         });
       }, 500);
@@ -239,6 +244,20 @@ export const InventoryPage: React.FC = () => {
       };
     }
   }, [isBarcodeScannerOpen]);
+
+  // Flashlight Toggle
+  const toggleTorch = async () => {
+    if (!barcodeScannerRef.current || !hasTorch) return;
+    try {
+      const newState = !isTorchOn;
+      await barcodeScannerRef.current.applyVideoConstraints({
+        advanced: [{ torch: newState } as any]
+      });
+      setIsTorchOn(newState);
+    } catch (err) {
+      console.error("Torch error:", err);
+    }
+  };
 
   // Currency Conversion
   const JPY_TO_PHP_RATE = 0.38;
@@ -1163,6 +1182,21 @@ export const InventoryPage: React.FC = () => {
                     {scanTip}
                   </p>
                 </div>
+
+                {hasTorch && (
+                  <button 
+                    onClick={toggleTorch}
+                    className={`w-full py-4 rounded-2xl font-bold flex items-center justify-center gap-3 transition-all uppercase tracking-widest text-xs ${
+                      isTorchOn 
+                      ? 'bg-yellow-400 text-yellow-900 shadow-lg shadow-yellow-400/20' 
+                      : 'bg-gray-800 text-gray-200 hover:bg-gray-700'
+                    }`}
+                  >
+                    <Zap className={`w-4 h-4 ${isTorchOn ? 'fill-current' : ''}`} />
+                    {isTorchOn ? 'Turn Off Flash' : 'Turn On Flash'}
+                  </button>
+                )}
+
                 <button 
                   onClick={() => setIsBarcodeScannerOpen(false)}
                   className="w-full py-4 bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 rounded-2xl font-bold hover:bg-gray-200 dark:hover:bg-gray-700 transition-all uppercase tracking-widest text-xs"

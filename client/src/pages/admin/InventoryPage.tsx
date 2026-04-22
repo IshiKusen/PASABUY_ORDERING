@@ -170,22 +170,40 @@ export const InventoryPage: React.FC = () => {
     }
   };
 
+  const [lookupSource, setLookupSource] = useState<string | null>(null);
+
   const handleBarcodeLookup = async (barcode: string) => {
     try {
       setLookupLoading(true);
+      setLookupSource(null);
       const data = await productsApi.lookupBarcode(barcode);
       
-      if (data.name) setFormName(data.name);
+      if (data.name) {
+        setFormName(data.name);
+        setLookupSource(data.source || 'Database');
+        
+        if (data.source === 'gemini-ai') {
+          setScanTip("🧠 AI identified this product! Please check the details.");
+        } else if (data.source === 'openfoodfacts') {
+          setScanTip("🍱 Found via Open Food Facts (Japan)!");
+        } else {
+          setScanTip("✅ Product found! Form auto-filled.");
+        }
+      }
+      
       if (data.brand) setFormDescription(data.brand);
       if (data.image) {
         setFormImagePreview(data.image);
         setFormImageFile(null); // Use the URL from API
       }
       
-      setIsBarcodeScannerOpen(false);
+      // Don't close immediately if AI was used, so user can see the tip
+      if (data.source !== 'gemini-ai') {
+        setIsBarcodeScannerOpen(false);
+      }
     } catch (err: any) {
       console.error('Barcode lookup error:', err);
-      alert(err.message || 'Product not found. You might need to enter it manually.');
+      setScanTip("❌ Product not found in any database.");
     } finally {
       setLookupLoading(false);
     }
@@ -857,7 +875,15 @@ export const InventoryPage: React.FC = () => {
               {/* Fields */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="md:col-span-2">
-                  <label className="block text-sm font-semibold text-gray-600 dark:text-gray-400 mb-1">Product Name</label>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="block text-sm font-semibold text-gray-600 dark:text-gray-400">Product Name</label>
+                    {lookupSource && (
+                      <span className="text-[10px] bg-primary-50 dark:bg-primary-900/30 text-primary-600 px-2 py-0.5 rounded-full font-bold flex items-center gap-1 border border-primary-100 dark:border-primary-800 animate-in fade-in slide-in-from-right-2">
+                        <Zap size={10} className="fill-current" />
+                        Found via {lookupSource}
+                      </span>
+                    )}
+                  </div>
                   <div className="flex gap-2">
                     <input type="text" value={formName} onChange={e => setFormName(e.target.value)} className="input flex-1" placeholder="e.g. SK-II Facial Treatment Essence" required />
                     <button 

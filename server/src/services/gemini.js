@@ -49,7 +49,7 @@ IMPORTANT:
 - Be friendly but direct.
 - Always be helpful about Japan products.`;
 
-    const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
+    const model = genAI.getGenerativeModel({ model: 'gemini-flash-latest' });
 
     const result = await model.generateContent([
       { text: systemPrompt },
@@ -57,7 +57,14 @@ IMPORTANT:
     ]);
 
     const response = result.response;
-    let text = response.text();
+    let text = '';
+    
+    try {
+      text = response.text();
+    } catch (e) {
+      console.warn('Gemini response error (likely blocked or empty):', e.message);
+      text = "Hello po! Welcome sa Japan Haul Pasabuy! 😊 Paano po namin kayo matutulungan today? Visit our website: https://pasabuy-ordering.vercel.app/ 🌐";
+    }
 
     // Clean up markdown
     text = text

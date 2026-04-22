@@ -112,7 +112,7 @@ export const DashboardPage: React.FC = () => {
             </div>
             <div className="bg-gray-50 dark:bg-dark-surfaceAlt p-4 rounded-xl border border-gray-100 dark:border-gray-800">
               <p className="text-xs text-gray-500 mb-1 uppercase tracking-wider">Exchange Rate</p>
-              <p className="font-bold dark:text-white">¥1 = ₱{Number(systemConfig.jpy_rate).toFixed(2)}</p>
+              <p className="font-bold dark:text-white">¥1 = ₱{Number(systemConfig.jpy_to_php_rate || 0).toFixed(2)}</p>
             </div>
           </div>
 

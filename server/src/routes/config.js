@@ -31,10 +31,12 @@ router.get('/', async (req, res) => {
 router.put('/', authenticate, requireAdmin, async (req, res) => {
   try {
     const updates = req.body; // { key: value, ... }
-    const entries = Object.entries(updates).map(([key, value]) => ({
-      config_key: key,
-      config_value: value.toString()
-    }));
+    const entries = Object.entries(updates)
+      .filter(([_, value]) => value !== null && value !== undefined)
+      .map(([key, value]) => ({
+        config_key: key,
+        config_value: value.toString()
+      }));
 
     for (const entry of entries) {
       const { error } = await supabase

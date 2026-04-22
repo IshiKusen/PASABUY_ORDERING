@@ -21,8 +21,13 @@ export const SettingsPage: React.FC = () => {
     try {
       setLoading(true);
       const data = await configApi.get();
-      // Only update fields that exist in the DB response
-      setConfig(prev => ({ ...prev, ...data.config }));
+      // Only update fields that exist in the DB response, ensure no nulls
+      const incoming = data.config || {};
+      const cleaned: any = {};
+      Object.keys(incoming).forEach(key => {
+        cleaned[key] = incoming[key] === null ? '' : incoming[key].toString();
+      });
+      setConfig(prev => ({ ...prev, ...cleaned }));
     } catch (err) {
       console.error('Failed to load config:', err);
     } finally {

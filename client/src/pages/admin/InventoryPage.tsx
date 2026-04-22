@@ -222,33 +222,24 @@ export const InventoryPage: React.FC = () => {
         const scanner = new Html5Qrcode("barcode-reader");
         barcodeScannerRef.current = scanner;
         
-        // Configuration for "Entire Frame" HD scanning
         const config = { 
           fps: 30,
           qrbox: (viewWidth: number, viewHeight: number) => {
-            // Full width, but keep it clear
-            return { width: viewWidth * 0.8, height: viewHeight * 0.4 };
+            return { width: viewWidth * 0.9, height: viewHeight * 0.4 };
           },
           aspectRatio: 1.0,
-          experimentalFeatures: { useBarCodeDetectorIfSupported: true }
+          disableFlip: true
         };
         
         t1 = setTimeout(() => setScanTip("💡 TIP: Move phone 5-8 inches away until lines are sharp!"), 4000);
         t2 = setTimeout(() => setScanTip("🔦 Use the 'FLASH' button below if it's too dark!"), 8000);
         
-        const videoConstraints = {
-          facingMode: "environment",
-          width: { min: 1280, ideal: 1920 },
-          height: { min: 720, ideal: 1080 }
-        };
-
         scanner.start(
-          videoConstraints, 
+          { facingMode: "environment" }, 
           config,
           (decodedText) => {
             if (navigator.vibrate) navigator.vibrate(100);
             handleBarcodeLookup(decodedText);
-            scanner.stop().catch(e => console.error(e));
           },
           () => {} 
         ).then(() => {
@@ -420,9 +411,7 @@ export const InventoryPage: React.FC = () => {
       
       const stream = await navigator.mediaDevices.getUserMedia({
         video: { 
-          facingMode: mode,
-          width: { ideal: 1920 },
-          height: { ideal: 1080 }
+          facingMode: mode
         },
         audio: false
       });

@@ -196,9 +196,9 @@ export const InventoryPage: React.FC = () => {
         html5QrCode.start(
           { 
             facingMode: "environment",
-            // Request High Resolution
-            width: { min: 640, ideal: 1280, max: 1920 },
-            height: { min: 480, ideal: 720, max: 1080 }
+            // Use 'ideal' so it doesn't crash if 1080p isn't available
+            width: { ideal: 1280 },
+            height: { ideal: 720 }
           }, 
           config,
           (decodedText) => {
@@ -213,6 +213,16 @@ export const InventoryPage: React.FC = () => {
           }
         ).catch(err => {
           console.error("Scanner start error:", err);
+          // If the high-res fails, try one more time with basic settings
+          html5QrCode?.start(
+            { facingMode: "environment" },
+            config,
+            (decodedText) => {
+              handleBarcodeLookup(decodedText);
+              html5QrCode?.stop().catch(e => console.error(e));
+            },
+            () => {}
+          ).catch(e => console.error("Final fallback failed:", e));
         });
       }, 300);
       

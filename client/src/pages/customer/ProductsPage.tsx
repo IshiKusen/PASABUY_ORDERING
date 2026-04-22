@@ -197,20 +197,10 @@ export const ProductsPage = () => {
 
   return (
     <div className="min-h-screen bg-[#fff0f5] dark:bg-dark-bg">
-      {/* ─── Page Header ─── */}
-      <div className="bg-gradient-to-r from-[#d62b70] to-[#e83e8c] dark:from-primary-800 dark:to-primary-700">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 md:py-14">
-          <h1 className="text-3xl md:text-4xl font-black text-white mb-2 tracking-tight">
-            Our Products
-          </h1>
-          <p className="text-white/80 font-medium max-w-lg">
-            Browse our full catalog of authentic Japanese items. Add to your bag and checkout before the batch closes!
-          </p>
-        </div>
-      </div>
+      {/* ─── Page Header Removed ─── */}
 
       {config.announcement_text && (
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 -mt-5">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-8">
           <div className="bg-white dark:bg-dark-surface border border-primary-100 dark:border-primary-800/30 rounded-2xl p-4 flex items-center gap-3 shadow-sm">
             <div className="bg-primary-500 p-2 rounded-lg text-white shrink-0">
               <MessageSquare size={16} />

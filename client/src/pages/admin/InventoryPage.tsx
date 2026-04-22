@@ -237,15 +237,8 @@ export const InventoryPage: React.FC = () => {
       let t2: any;
 
       const timer = setTimeout(() => {
-        // Explicitly define formats to support Japanese JAN (EAN-13) and UPC-A
+        // Universal Mode: Supports ALL barcode and QR formats
         const scanner = new Html5Qrcode("barcode-reader", {
-          formatsToSupport: [ 
-            Html5QrcodeSupportedFormats.EAN_13, 
-            Html5QrcodeSupportedFormats.UPC_A, 
-            Html5QrcodeSupportedFormats.EAN_8,
-            Html5QrcodeSupportedFormats.UPC_E,
-            Html5QrcodeSupportedFormats.CODE_128
-          ],
           verbose: false
         });
         barcodeScannerRef.current = scanner;

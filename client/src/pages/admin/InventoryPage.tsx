@@ -174,62 +174,54 @@ export const InventoryPage: React.FC = () => {
     }
   };
 
+  const barcodeScannerRef = useRef<Html5Qrcode | null>(null);
+
   // Barcode Scanner Lifecycle
   useEffect(() => {
-    let html5QrCode: Html5Qrcode | null = null;
-    
+    // Cleanup any existing camera streams from "Take Photo" feature
+    const cleanupAllCameras = () => {
+      if (cameraStream) {
+        cameraStream.getTracks().forEach(track => track.stop());
+        setCameraStream(null);
+      }
+      setIsLiveCameraOpen(false);
+    };
+
     if (isBarcodeScannerOpen) {
-      // We need to wait for the element to be in the DOM
+      cleanupAllCameras(); // KILL any other camera usage first
+      
       const timer = setTimeout(() => {
-        html5QrCode = new Html5Qrcode("barcode-reader");
+        const scanner = new Html5Qrcode("barcode-reader");
+        barcodeScannerRef.current = scanner;
         
-        // HIGHER QUALITY SETTINGS
         const config = { 
-          fps: 20, // Faster scanning
-          qrbox: { width: 280, height: 180 }, // Slightly larger box
+          fps: 20, 
+          qrbox: { width: 280, height: 180 },
           aspectRatio: 1.0,
-          experimentalFeatures: {
-            useBarCodeDetectorIfSupported: true // Use native phone hardware if available
-          }
+          experimentalFeatures: { useBarCodeDetectorIfSupported: true }
         };
         
-        html5QrCode.start(
-          { 
-            facingMode: "environment",
-            // Use 'ideal' so it doesn't crash if 1080p isn't available
-            width: { ideal: 1280 },
-            height: { ideal: 720 }
-          }, 
+        // Use basic constraints first to ensure visibility
+        scanner.start(
+          { facingMode: "environment" }, 
           config,
           (decodedText) => {
-            // Success
             handleBarcodeLookup(decodedText);
-            if (html5QrCode) {
-              html5QrCode.stop().catch(err => console.error(err));
-            }
+            scanner.stop().catch(e => console.error("Stop error:", e));
           },
-          () => {
-            // parse error, ignore
-          }
+          () => {} // silent parse error
         ).catch(err => {
           console.error("Scanner start error:", err);
-          // If the high-res fails, try one more time with basic settings
-          html5QrCode?.start(
-            { facingMode: "environment" },
-            config,
-            (decodedText) => {
-              handleBarcodeLookup(decodedText);
-              html5QrCode?.stop().catch(e => console.error(e));
-            },
-            () => {}
-          ).catch(e => console.error("Final fallback failed:", e));
         });
-      }, 300);
+      }, 500); // Wait a bit longer for DOM and cleanup
       
       return () => {
         clearTimeout(timer);
-        if (html5QrCode && html5QrCode.isScanning) {
-          html5QrCode.stop().catch(err => console.error(err));
+        if (barcodeScannerRef.current) {
+          if (barcodeScannerRef.current.isScanning) {
+            barcodeScannerRef.current.stop().catch(e => console.error("Cleanup stop error:", e));
+          }
+          barcodeScannerRef.current = null;
         }
       };
     }

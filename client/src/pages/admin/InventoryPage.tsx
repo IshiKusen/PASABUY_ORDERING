@@ -241,38 +241,40 @@ export const InventoryPage: React.FC = () => {
         const scanner = new Html5Qrcode("barcode-reader", {
           verbose: false
         });
-        barcodeScannerRef.current = scanner;
-        
-        const config = { 
+        barcodeScannerRef.current = scanner;        const config = { 
           fps: 60, 
-          qrbox: (viewWidth: number, viewHeight: number) => {
-            // Taller box for curved surfaces like cans
-            const width = viewWidth * 0.9;
-            const height = Math.min(viewHeight * 0.7, 250);
-            return { width, height };
-          },
-          aspectRatio: 1.777778, // Force 16:9 HD ratio
+          qrbox: { width: 280, height: 160 }, // Fixed rectangular box for better focus
+          aspectRatio: 1.777778, 
           disableFlip: true,
           videoConstraints: {
             facingMode: "environment",
-            width: { ideal: 1280 }, // HD Quality
+            width: { ideal: 1280 },
             height: { ideal: 720 },
-            focusMode: "continuous", // MACRO FOCUS
-            whiteBalanceMode: "continuous"
+            focusMode: "continuous"
           }
         };
         
-        t1 = setTimeout(() => setScanTip("💡 TIP: Keep barcode center and steady!"), 4000);
-        t2 = setTimeout(() => setScanTip("🔦 Make sure the area is well lit!"), 8000);
+        t1 = setTimeout(() => setScanTip("💡 TIP: Keep some white space around the barcode!"), 4000);
+        t2 = setTimeout(() => setScanTip("🔦 Use the FLASH if lines look gray!"), 8000);
         
+        const onScanSuccess = (decodedText: string) => {
+          // THE "FEEL" - Sound & Vibration
+          try {
+            const audio = new Audio('https://assets.mixkit.co/active_storage/sfx/2571/2571-preview.mp3');
+            audio.volume = 0.5;
+            audio.play();
+          } catch (e) {}
+          
+          if (navigator.vibrate) navigator.vibrate([100, 50, 100]);
+          
+          setManualBarcode(decodedText); 
+          handleBarcodeLookup(decodedText); 
+        };
+
         scanner.start(
           { facingMode: "environment" }, 
           config,
-          (decodedText) => {
-            if (navigator.vibrate) navigator.vibrate(100);
-            setManualBarcode(decodedText); 
-            handleBarcodeLookup(decodedText); 
-          },
+          onScanSuccess,
           () => {} 
         ).then(() => {
           setHasTorch(true); 
@@ -281,9 +283,8 @@ export const InventoryPage: React.FC = () => {
             try {
               const track = (scanner as any).getRunningTrack();
               if (track && track.applyConstraints) {
-                // Aggressively try to focus
                 track.applyConstraints({
-                  advanced: [{ focusMode: "continuous" } as any, { torch: false } as any]
+                  advanced: [{ focusMode: "continuous" } as any]
                 });
               }
             } catch (e) {}

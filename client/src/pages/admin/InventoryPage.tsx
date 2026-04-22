@@ -244,14 +244,21 @@ export const InventoryPage: React.FC = () => {
         barcodeScannerRef.current = scanner;
         
         const config = { 
-          fps: 60, // Ultra-high frame rate for instant capture
+          fps: 60, 
           qrbox: (viewWidth: number, viewHeight: number) => {
-            return { width: viewWidth * 0.9, height: viewHeight * 0.6 }; // Even bigger box
+            // Taller box for curved surfaces like cans
+            const width = viewWidth * 0.9;
+            const height = Math.min(viewHeight * 0.7, 250);
+            return { width, height };
           },
-          aspectRatio: 1.0,
+          aspectRatio: 1.777778, // Force 16:9 HD ratio
           disableFlip: true,
-          experimentalFeatures: {
-            useBarCodeDetectorIfSupported: true 
+          videoConstraints: {
+            facingMode: "environment",
+            width: { ideal: 1280 }, // HD Quality
+            height: { ideal: 720 },
+            focusMode: "continuous", // MACRO FOCUS
+            whiteBalanceMode: "continuous"
           }
         };
         
@@ -263,24 +270,24 @@ export const InventoryPage: React.FC = () => {
           config,
           (decodedText) => {
             if (navigator.vibrate) navigator.vibrate(100);
-            setManualBarcode(decodedText); // Show the numbers in the field!
-            handleBarcodeLookup(decodedText); // Then look it up!
+            setManualBarcode(decodedText); 
+            handleBarcodeLookup(decodedText); 
           },
           () => {} 
         ).then(() => {
-          // Force hasTorch to true if environment camera - most back cameras have flash
           setHasTorch(true); 
           
           setTimeout(() => {
             try {
               const track = (scanner as any).getRunningTrack();
-              if (track && track.getCapabilities && track.getCapabilities().torch) {
-                // Keep it true
+              if (track && track.applyConstraints) {
+                // Aggressively try to focus
+                track.applyConstraints({
+                  advanced: [{ focusMode: "continuous" } as any, { torch: false } as any]
+                });
               }
-            } catch (e) {
-              console.log("Torch check error", e);
-            }
-          }, 1000);
+            } catch (e) {}
+          }, 2000);
         }).catch(err => {
           console.error("HD Start failed, falling back...", err);
           scanner.start({ facingMode: "environment" }, config, (text) => {

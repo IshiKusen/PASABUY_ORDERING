@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { ShoppingCart, ArrowRight, Package, Truck, CheckCircle, MessageSquare, Clock, Shield, Star, ChevronRight, Smartphone } from 'lucide-react';
 import { productsApi, configApi } from '../../utils/api';
 import { useCartStore } from '../../store/cartStore';
+import logo from '../../../Images/PasabuyLogo.png';
 
 interface Variant {
   id: number;
@@ -507,10 +508,8 @@ export const HomePage: React.FC = () => {
           <div className="grid md:grid-cols-3 gap-12 mb-12">
             <div>
               <div className="flex items-center gap-3 mb-4">
-                <div className="bg-primary-500 p-2 rounded-xl">
-                  <Package size={20} className="text-white" />
-                </div>
-                <span className="text-xl font-bold">Ordering Pasabuy</span>
+                <img src={logo} alt="Japan Haul Pasabuy" className="h-9 w-auto object-contain" />
+                <span className="text-xl font-bold">Japan Haul Pasabuy</span>
               </div>
               <p className="text-gray-400 text-sm leading-relaxed">
                 Your trusted pasabuy service from Japan to Philippines. Authentic products, reliable delivery.
@@ -547,7 +546,7 @@ export const HomePage: React.FC = () => {
 
           <div className="border-t border-gray-800 pt-8 text-center">
             <p className="text-gray-500 text-sm">
-              © {new Date().getFullYear()} Ordering Pasabuy. All rights reserved.
+              © {new Date().getFullYear()} Japan Haul Pasabuy. All rights reserved.
             </p>
           </div>
         </div>

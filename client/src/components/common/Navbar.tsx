@@ -5,6 +5,8 @@ import { useCartStore } from '../../store/cartStore';
 import { useAuthStore } from '../../store/authStore';
 import { removeToken } from '../../utils/api';
 
+import logo from '../../../Images/PasabuyLogo.png';
+
 export const Navbar: React.FC = () => {
   const { getTotalItems, setCartOpen } = useCartStore();
   const { user, isAuthenticated, setLoginModalOpen, logout } = useAuthStore();
@@ -55,11 +57,9 @@ export const Navbar: React.FC = () => {
           {/* Logo */}
           <div className="flex items-center">
             <Link to="/" className="flex items-center gap-2.5 group">
-              <div className="bg-primary-500 p-2 rounded-xl text-white group-hover:bg-primary-600 transition-colors">
-                <Package size={22} />
-              </div>
-              <span className="text-lg font-bold bg-clip-text text-transparent bg-gradient-to-r from-primary-500 to-primary-700 hidden sm:inline">
-                Ordering Pasabuy
+              <img src={logo} alt="Japan Haul Pasabuy" className="h-10 w-auto object-contain transition-transform group-hover:scale-105" />
+              <span className="text-lg font-black bg-clip-text text-transparent bg-gradient-to-r from-primary-600 to-primary-800 hidden sm:inline tracking-tight">
+                Japan Haul Pasabuy
               </span>
             </Link>
           </div>

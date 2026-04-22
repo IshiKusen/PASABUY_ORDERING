@@ -211,11 +211,7 @@ export const InventoryPage: React.FC = () => {
         t2 = setTimeout(() => setScanTip("Ensure barcode is flat and centered!"), 10000);
         
         scanner.start(
-          { 
-            facingMode: "environment",
-            width: { ideal: 1920 }, // High-Res for sharp lines
-            height: { ideal: 1080 }
-          }, 
+          { facingMode: "environment" }, 
           config,
           (decodedText) => {
             // Success - Vibrate for feedback
@@ -227,12 +223,6 @@ export const InventoryPage: React.FC = () => {
           () => {} 
         ).catch(err => {
           console.error("Scanner start error:", err);
-          // Simple fallback
-          scanner.start({ facingMode: "environment" }, config, (text) => {
-            if (navigator.vibrate) navigator.vibrate(100);
-            handleBarcodeLookup(text);
-            scanner.stop().catch(e => console.error(e));
-          }, () => {});
         });
       }, 500);
       

@@ -216,6 +216,7 @@ export const InventoryPage: React.FC = () => {
   const [hasTorch, setHasTorch] = useState(false);
   const [manualBarcode, setManualBarcode] = useState("");
   const [showManualInput, setShowManualInput] = useState(false);
+  const [liveDetectedCode, setLiveDetectedCode] = useState<string | null>(null);
 
   // Barcode Scanner Lifecycle
   useEffect(() => {
@@ -232,6 +233,7 @@ export const InventoryPage: React.FC = () => {
       setScanTip("Searching for barcode...");
       setIsTorchOn(false);
       setHasTorch(false);
+      setLiveDetectedCode(null);
       
       let t1: any;
       let t2: any;
@@ -258,17 +260,11 @@ export const InventoryPage: React.FC = () => {
         t2 = setTimeout(() => setScanTip("🔦 Use the FLASH if lines look gray!"), 8000);
         
         const onScanSuccess = (decodedText: string) => {
-          // THE "FEEL" - Sound & Vibration
-          try {
-            const audio = new Audio('https://assets.mixkit.co/active_storage/sfx/2571/2571-preview.mp3');
-            audio.volume = 0.5;
-            audio.play();
-          } catch (e) {}
+          // Discovery Mode: Show the code but don't search yet
+          setLiveDetectedCode(decodedText);
           
-          if (navigator.vibrate) navigator.vibrate([100, 50, 100]);
-          
-          setManualBarcode(decodedText); 
-          handleBarcodeLookup(decodedText); 
+          // Light feedback
+          if (navigator.vibrate) navigator.vibrate(50);
         };
 
         scanner.start(
@@ -278,24 +274,24 @@ export const InventoryPage: React.FC = () => {
           () => {} 
         ).then(() => {
           setHasTorch(true); 
-          
+          // Enable Tap to Focus
           setTimeout(() => {
-            try {
-              const track = (scanner as any).getRunningTrack();
-              if (track && track.applyConstraints) {
-                track.applyConstraints({
-                  advanced: [{ focusMode: "continuous" } as any]
-                });
-              }
-            } catch (e) {}
-          }, 2000);
+            const videoElement = document.querySelector('#barcode-reader video');
+            if (videoElement) {
+              videoElement.addEventListener('click', () => {
+                try {
+                  const track = (scanner as any).getRunningTrack();
+                  if (track && track.applyConstraints) {
+                    track.applyConstraints({ advanced: [{ focusMode: "continuous" } as any] });
+                    setScanTip("🎯 Focusing...");
+                  }
+                } catch (e) {}
+              });
+            }
+          }, 1000);
         }).catch(err => {
-          console.error("HD Start failed, falling back...", err);
-          scanner.start({ facingMode: "environment" }, config, (text) => {
-            if (navigator.vibrate) navigator.vibrate(100);
-            handleBarcodeLookup(text);
-            scanner.stop().catch(e => console.error(e));
-          }, () => {});
+          console.error("Scanner failed, falling back...", err);
+          scanner.start({ facingMode: "environment" }, config, onScanSuccess, () => {});
         });
       }, 500);
       
@@ -1235,6 +1231,26 @@ export const InventoryPage: React.FC = () => {
             <div className="p-6">
               <div className="relative aspect-[4/3] bg-black rounded-2xl overflow-hidden border-2 border-gray-100 dark:border-gray-800">
                 <div id="barcode-reader" className="w-full h-full"></div>
+                
+                {/* Live Detected Code Chip (iPhone Style) */}
+                {liveDetectedCode && !lookupLoading && (
+                  <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-20 flex flex-col items-center pointer-events-auto">
+                    <button
+                      onClick={() => {
+                        setManualBarcode(liveDetectedCode);
+                        handleBarcodeLookup(liveDetectedCode);
+                        setLiveDetectedCode(null);
+                      }}
+                      className="bg-yellow-400 text-yellow-900 px-6 py-3 rounded-full font-black text-sm shadow-[0_0_50px_rgba(250,204,21,0.5)] flex items-center gap-2 animate-bounce border-2 border-white hover:scale-110 active:scale-95 transition-all"
+                    >
+                      <Barcode className="w-4 h-4" />
+                      {liveDetectedCode}
+                    </button>
+                    <p className="text-white text-[10px] font-black uppercase tracking-tighter text-center mt-2 drop-shadow-lg bg-black/40 px-2 py-0.5 rounded backdrop-blur-sm">
+                      TAP NUMBERS TO SCAN
+                    </p>
+                  </div>
+                )}
                 
                 {lookupLoading && (
                   <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/80 text-white z-10 gap-3">

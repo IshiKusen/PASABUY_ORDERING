@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Plus, Search, Edit2, Trash2, Filter, Package, X, UploadCloud, ImageIcon, Loader2, Camera, RotateCw, Check, Settings, ScanBarcode, Scan } from 'lucide-react';
+import { Plus, Search, Edit2, Trash2, Filter, Package, X, UploadCloud, ImageIcon, Loader2, Camera, RotateCw, Check, Settings, ScanBarcode } from 'lucide-react';
 import { Html5Qrcode } from 'html5-qrcode';
 import { productsApi, categoriesApi } from '../../utils/api';
 
@@ -80,7 +80,6 @@ export const InventoryPage: React.FC = () => {
 
   // Barcode Scanner States
   const [isBarcodeScannerOpen, setIsBarcodeScannerOpen] = useState(false);
-  const [isScanning, setIsScanning] = useState(false);
   const [lookupLoading, setLookupLoading] = useState(false);
 
   // Load data
@@ -180,7 +179,6 @@ export const InventoryPage: React.FC = () => {
     let html5QrCode: Html5Qrcode | null = null;
     
     if (isBarcodeScannerOpen) {
-      setIsScanning(true);
       // We need to wait for the element to be in the DOM
       const timer = setTimeout(() => {
         html5QrCode = new Html5Qrcode("barcode-reader");
@@ -196,14 +194,12 @@ export const InventoryPage: React.FC = () => {
             if (html5QrCode) {
               html5QrCode.stop().catch(err => console.error(err));
             }
-            setIsScanning(false);
           },
-          (errorMessage) => {
+          () => {
             // parse error, ignore
           }
         ).catch(err => {
           console.error("Scanner start error:", err);
-          setIsScanning(false);
         });
       }, 300);
       

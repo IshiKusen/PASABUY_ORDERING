@@ -81,6 +81,9 @@ export const productsApi = {
 
   delete: (id: number) =>
     apiFetch(`/products/${id}`, { method: 'DELETE' }),
+
+  lookupBarcode: (barcode: string) =>
+    apiFetch(`/products/lookup/${barcode}`),
 };
 
 // =============================================

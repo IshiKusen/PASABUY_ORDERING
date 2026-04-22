@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Plus, Search, Edit2, Trash2, Filter, Package, X, UploadCloud, ImageIcon, Loader2, Camera, RotateCw, Check, Settings } from 'lucide-react';
+import { Plus, Search, Edit2, Trash2, Filter, Package, X, UploadCloud, ImageIcon, Loader2, Camera, RotateCw, Check, Settings, ScanBarcode, Scan } from 'lucide-react';
+import { Html5Qrcode } from 'html5-qrcode';
 import { productsApi, categoriesApi } from '../../utils/api';
 
 const API_HOST = import.meta.env.VITE_API_URL || 'http://localhost:5000';
@@ -77,6 +78,11 @@ export const InventoryPage: React.FC = () => {
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
+  // Barcode Scanner States
+  const [isBarcodeScannerOpen, setIsBarcodeScannerOpen] = useState(false);
+  const [isScanning, setIsScanning] = useState(false);
+  const [lookupLoading, setLookupLoading] = useState(false);
+
   // Load data
   useEffect(() => {
     loadData();
@@ -147,6 +153,68 @@ export const InventoryPage: React.FC = () => {
       }
     }
   };
+
+  const handleBarcodeLookup = async (barcode: string) => {
+    try {
+      setLookupLoading(true);
+      const data = await productsApi.lookupBarcode(barcode);
+      
+      if (data.name) setFormName(data.name);
+      if (data.brand) setFormDescription(data.brand);
+      if (data.image) {
+        setFormImagePreview(data.image);
+        setFormImageFile(null); // Use the URL from API
+      }
+      
+      setIsBarcodeScannerOpen(false);
+    } catch (err: any) {
+      console.error('Barcode lookup error:', err);
+      alert(err.message || 'Product not found. You might need to enter it manually.');
+    } finally {
+      setLookupLoading(false);
+    }
+  };
+
+  // Barcode Scanner Lifecycle
+  useEffect(() => {
+    let html5QrCode: Html5Qrcode | null = null;
+    
+    if (isBarcodeScannerOpen) {
+      setIsScanning(true);
+      // We need to wait for the element to be in the DOM
+      const timer = setTimeout(() => {
+        html5QrCode = new Html5Qrcode("barcode-reader");
+        
+        const config = { fps: 10, qrbox: { width: 250, height: 150 } };
+        
+        html5QrCode.start(
+          { facingMode: "environment" }, 
+          config,
+          (decodedText) => {
+            // Success
+            handleBarcodeLookup(decodedText);
+            if (html5QrCode) {
+              html5QrCode.stop().catch(err => console.error(err));
+            }
+            setIsScanning(false);
+          },
+          (errorMessage) => {
+            // parse error, ignore
+          }
+        ).catch(err => {
+          console.error("Scanner start error:", err);
+          setIsScanning(false);
+        });
+      }, 300);
+      
+      return () => {
+        clearTimeout(timer);
+        if (html5QrCode && html5QrCode.isScanning) {
+          html5QrCode.stop().catch(err => console.error(err));
+        }
+      };
+    }
+  }, [isBarcodeScannerOpen]);
 
   // Currency Conversion
   const JPY_TO_PHP_RATE = 0.38;
@@ -716,12 +784,22 @@ export const InventoryPage: React.FC = () => {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="md:col-span-2">
                   <label className="block text-sm font-semibold text-gray-600 dark:text-gray-400 mb-1">Product Name</label>
-                  <input type="text" value={formName} onChange={e => setFormName(e.target.value)} className="input" placeholder="e.g. SK-II Facial Treatment Essence" required />
+                  <div className="flex gap-2">
+                    <input type="text" value={formName} onChange={e => setFormName(e.target.value)} className="input flex-1" placeholder="e.g. SK-II Facial Treatment Essence" required />
+                    <button 
+                      type="button" 
+                      onClick={() => setIsBarcodeScannerOpen(true)}
+                      className="p-3 bg-primary-100 text-primary-600 rounded-xl hover:bg-primary-200 transition-all flex items-center justify-center shrink-0 shadow-sm active:scale-95"
+                      title="Scan Barcode"
+                    >
+                      <ScanBarcode size={20} />
+                    </button>
+                  </div>
                 </div>
                 
                 <div className="md:col-span-2">
-                  <label className="block text-sm font-semibold text-gray-600 dark:text-gray-400 mb-1">Caption / Description</label>
-                  <textarea value={formDescription} onChange={e => setFormDescription(e.target.value)} className="input min-h-[80px]" placeholder="Enter product details shown to customers..." required />
+                  <label className="block text-sm font-semibold text-gray-600 dark:text-gray-400 mb-1">Brand Name (Optional)</label>
+                  <input type="text" value={formDescription} onChange={e => setFormDescription(e.target.value)} className="input" placeholder="e.g. Shiseido, Meiji, SK-II" />
                 </div>
 
                 <div>
@@ -1017,6 +1095,60 @@ export const InventoryPage: React.FC = () => {
           </div>
         </div>
       )}
+
+      {/* Barcode Scanner Modal */}
+      {isBarcodeScannerOpen && (
+        <div className="fixed inset-0 z-[120] flex items-center justify-center backdrop-blur-md bg-black/60 p-4 animate-fade-in">
+          <div className="bg-white dark:bg-dark-surface w-full max-w-md rounded-3xl shadow-2xl overflow-hidden animate-scale-up border border-gray-100 dark:border-gray-800">
+            <div className="flex justify-between items-center p-6 border-b dark:border-gray-800 bg-gray-50/50 dark:bg-dark-surfaceAlt/50">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-primary-100 dark:bg-primary-900/30 text-primary-600 rounded-xl">
+                  <ScanBarcode size={20} />
+                </div>
+                <h2 className="text-lg font-black dark:text-white uppercase tracking-tight">Scan Barcode</h2>
+              </div>
+              <button 
+                onClick={() => setIsBarcodeScannerOpen(false)} 
+                className="p-2 text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-full transition-colors"
+              >
+                <X size={20} />
+              </button>
+            </div>
+            
+            <div className="p-6">
+              <div className="relative aspect-[4/3] bg-black rounded-2xl overflow-hidden border-2 border-gray-100 dark:border-gray-800">
+                <div id="barcode-reader" className="w-full h-full"></div>
+                
+                {lookupLoading && (
+                  <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/80 text-white z-10 gap-3">
+                    <Loader2 className="w-8 h-8 text-primary-500 animate-spin" />
+                    <p className="text-sm font-bold uppercase tracking-widest animate-pulse">Finding Product...</p>
+                  </div>
+                )}
+
+                <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 flex justify-center pointer-events-none">
+                  <div className="w-64 h-32 border-2 border-primary-500 rounded-xl relative">
+                    <div className="absolute inset-x-0 top-1/2 h-0.5 bg-primary-500/50 animate-scan-line"></div>
+                  </div>
+                </div>
+              </div>
+              
+              <div className="mt-6 space-y-4">
+                <p className="text-sm text-gray-500 dark:text-gray-400 text-center leading-relaxed">
+                  Center the product's barcode within the box to scan. Details will be auto-filled.
+                </p>
+                <button 
+                  onClick={() => setIsBarcodeScannerOpen(false)}
+                  className="w-full py-4 bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 rounded-2xl font-bold hover:bg-gray-200 dark:hover:bg-gray-700 transition-all uppercase tracking-widest text-xs"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Category Manager Modal */}
       {isCategoryManagerOpen && (
         <div className="fixed inset-0 z-[110] flex items-center justify-center backdrop-blur-md bg-black/40 p-4 animate-fade-in">

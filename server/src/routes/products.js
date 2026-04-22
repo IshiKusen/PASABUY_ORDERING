@@ -85,6 +85,33 @@ router.get('/', async (req, res) => {
 });
 
 
+// GET /api/products/lookup/:barcode - Lookup product info by barcode (admin only)
+router.get('/lookup/:barcode', authenticate, requireAdmin, async (req, res) => {
+  try {
+    const { barcode } = req.params;
+    
+    // UPCitemdb Trial API - Supports up to 100 requests per day without a dedicated key
+    // For production scaling, a key can be added to the headers
+    const response = await fetch(`https://api.upcitemdb.com/prod/trial/lookup?upc=${barcode}`);
+    const data = await response.json();
+
+    if (data.code === 'OK' && data.items && data.items.length > 0) {
+      const item = data.items[0];
+      return res.json({
+        name: item.title,
+        brand: item.brand,
+        image: item.images && item.images.length > 0 ? item.images[0] : null
+      });
+    }
+
+    res.status(404).json({ error: 'Product not found. You may need to enter details manually.' });
+  } catch (err) {
+    console.error('Barcode lookup error:', err);
+    res.status(500).json({ error: 'Failed to connect to the lookup service.' });
+  }
+});
+
+
 // GET /api/products/:id - Get single product
 router.get('/:id', async (req, res) => {
   try {

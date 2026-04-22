@@ -113,3 +113,14 @@
 .glow-pink:hover {
   box-shadow: 0 0 25px rgba(236, 72, 153, 0.5);
 }
+
+@keyframes scan-line {
+  0% { transform: translateY(-50px); opacity: 0; }
+  10% { opacity: 1; }
+  90% { opacity: 1; }
+  100% { transform: translateY(50px); opacity: 0; }
+}
+
+.animate-scan-line {
+  animation: scan-line 2s linear infinite;
+}

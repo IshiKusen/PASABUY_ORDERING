@@ -312,9 +312,11 @@ export const ProductsPage = () => {
                     <h3 className="text-sm md:text-[15px] font-bold text-gray-900 dark:text-white mb-1 line-clamp-2 leading-snug">
                       {product.name}
                     </h3>
-                    <p className="text-gray-500 dark:text-gray-400 text-xs md:text-[13px] line-clamp-2 leading-relaxed">
-                      {product.description}
-                    </p>
+                    {product.description && (
+                      <p className="text-primary-600 dark:text-primary-400 text-[10px] font-bold uppercase tracking-wider mb-2">
+                        {product.description}
+                      </p>
+                    )}
                   </div>
                   
                   <div className="flex items-center justify-between mt-auto">

@@ -1,18 +1,11 @@
 import React from 'react';
 import { useCartStore } from '../../store/cartStore';
 import { useAuthStore } from '../../store/authStore';
+import { getImageUrl } from '../../utils/image';
 import { X, Minus, Plus, Trash2, ShoppingBag, ShoppingCart } from 'lucide-react';
 import { MOCK_CONFIG } from '../../utils/mockData';
 import { ordersApi } from '../../utils/api';
 
-const API_HOST = import.meta.env.VITE_API_URL || 'http://localhost:5000';
-
-const getImageUrl = (path: string | null | undefined) => {
-  if (!path) return 'https://placehold.co/100x100/f9a8d4/831843?text=No+Img';
-  if (path.startsWith('http')) return path;
-  const normalizedPath = path.startsWith('/') ? path : `/${path}`;
-  return `${API_HOST}${normalizedPath}`;
-};
 
 export const CartDrawer: React.FC = () => {
   const { isCartOpen, setCartOpen, items, removeItem, updateQuantity, getTotalPrice, clearCart } = useCartStore();

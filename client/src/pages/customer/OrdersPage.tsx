@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Package, Clock, ChevronRight, ShoppingBag, X, CheckCircle2, Truck, AlertTriangle } from 'lucide-react';
 import { ordersApi } from '../../utils/api';
+import { getImageUrl } from '../../utils/image';
 import { format } from 'date-fns';
 
 interface OrderItem {
@@ -22,15 +23,6 @@ interface Order {
   item_count: number;
   cancellation_reason?: string;
 }
-
-const API_HOST = import.meta.env.VITE_API_URL || 'http://localhost:5000';
-
-const getImageUrl = (path: string | null | undefined) => {
-  if (!path || typeof path !== 'string') return 'https://images.unsplash.com/photo-1578916171728-46686eac8d58?auto=format&fit=crop&q=80';
-  if (path.startsWith('http')) return path;
-  const normalizedPath = path.startsWith('/') ? path : `/${path}`;
-  return `${API_HOST}${normalizedPath}`;
-};
 
 export const OrdersPage: React.FC = () => {
   const [orders, setOrders] = useState<Order[]>([]);

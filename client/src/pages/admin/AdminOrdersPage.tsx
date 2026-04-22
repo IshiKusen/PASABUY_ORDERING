@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Eye, MapPin, Calendar, Search, X, Check, Loader2, AlertTriangle } from 'lucide-react';
 import { ordersApi } from '../../utils/api';
+import { getImageUrl } from '../../utils/image';
 import { MapContainer, TileLayer, Marker } from 'react-leaflet';
 import L from 'leaflet';
 import type { LatLngExpression } from 'leaflet';
@@ -20,14 +21,6 @@ const MapContainerCast = MapContainer as any;
 const TileLayerCast = TileLayer as any;
 const MarkerCast = Marker as any;
 
-const API_HOST = import.meta.env.VITE_API_URL || 'http://localhost:5000';
-
-const getImageUrl = (path: string | null | undefined) => {
-  if (!path || typeof path !== 'string') return 'https://placehold.co/100x100/f9a8d4/831843?text=No+Img';
-  if (path.startsWith('http')) return path;
-  const normalizedPath = path.startsWith('/') ? path : `/${path}`;
-  return `${API_HOST}${normalizedPath}`;
-};
 
 interface OrderItem {
   id: number;

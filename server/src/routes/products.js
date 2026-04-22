@@ -92,6 +92,22 @@ router.get('/lookup/:barcode', authenticate, requireAdmin, async (req, res) => {
   const { barcode } = req.params;
   
   try {
+    // TIER 0: Local Database Search
+    const { data: localProduct } = await supabase
+      .from('products')
+      .select('*')
+      .eq('barcode', barcode)
+      .maybeSingle();
+
+    if (localProduct) {
+      return res.json({
+        name: localProduct.name,
+        brand: localProduct.brand,
+        image: localProduct.image_path,
+        source: 'local-db'
+      });
+    }
+
     // TIER 1: UPCitemdb (General)
     try {
       const upcRes = await fetch(`https://api.upcitemdb.com/prod/trial/lookup?upc=${barcode}`);
@@ -176,7 +192,7 @@ router.get('/:id', async (req, res) => {
 // POST /api/products - Create product (admin)
 router.post('/', authenticate, requireAdmin, upload.any(), async (req, res) => {
   try {
-    const { name, description, price_php, price_jpy, category_id, stock } = req.body;
+    const { name, description, price_php, price_jpy, category_id, stock, barcode, brand } = req.body;
     
     // Handle main product image
     let image_path = req.body.image_path || null;
@@ -193,7 +209,9 @@ router.post('/', authenticate, requireAdmin, upload.any(), async (req, res) => {
         price_jpy: Number(price_jpy) || null, 
         category_id: Number(category_id), 
         stock: Number(stock) || 0, 
-        image_path 
+        image_path,
+        barcode,
+        brand
       }])
       .select()
       .single();
@@ -240,7 +258,7 @@ router.post('/', authenticate, requireAdmin, upload.any(), async (req, res) => {
 router.patch('/:id', authenticate, requireAdmin, upload.any(), async (req, res) => {
   try {
     const productId = req.params.id;
-    const { name, description, price_php, price_jpy, category_id, stock } = req.body;
+    const { name, description, price_php, price_jpy, category_id, stock, barcode, brand } = req.body;
 
     // Handle main product image
     let image_path = req.body.image_path; // retain existing if not new
@@ -249,18 +267,22 @@ router.patch('/:id', authenticate, requireAdmin, upload.any(), async (req, res) 
       image_path = await uploadToSupabase(baseFile);
     }
 
-    const { error } = await supabase
+    const { data: product, error } = await supabase
       .from('products')
-      .update({
-        name, description,
-        price_php: Number(price_php),
-        price_jpy: Number(price_jpy) || null,
-        category_id: Number(category_id),
-        stock: Number(stock) || 0,
-        image_path
+      .update({ 
+        name, description, 
+        price_php: Number(price_php), 
+        price_jpy: Number(price_jpy) || null, 
+        category_id: Number(category_id), 
+        stock: Number(stock), 
+        image_path,
+        barcode,
+        brand,
+        updated_at: new Date()
       })
-      .eq('id', productId);
-
+      .eq('id', productId)
+      .select()
+      .single();
     if (error) throw error;
 
     // Handle variants (Complex update: delete old, insert new or update)

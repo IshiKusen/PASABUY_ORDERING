@@ -20,8 +20,8 @@ import {
 } from 'lucide-react';
 import { Html5Qrcode, Html5QrcodeSupportedFormats } from 'html5-qrcode';
 import { productsApi, categoriesApi } from '../../utils/api';
+import { getImageUrl } from '../../utils/image';
 
-const API_HOST = import.meta.env.VITE_API_URL || 'http://localhost:5000';
 
 interface Variant {
   id?: number;
@@ -49,6 +49,7 @@ interface Product {
   min_price?: string;
   max_price?: string;
   barcode?: string;
+  brand?: string;
 }
 
 interface Category {
@@ -79,6 +80,7 @@ export const InventoryPage: React.FC = () => {
   const [editCategoryName, setEditCategoryName] = useState("");
   const [formStock, setFormStock] = useState("");
   const [formBarcode, setFormBarcode] = useState("");
+  const [formBrand, setFormBrand] = useState("");
   const [formImageFile, setFormImageFile] = useState<File | null>(null);
   const [formImagePreview, setFormImagePreview] = useState("");
   const [dragActive, setDragActive] = useState(false);
@@ -138,6 +140,7 @@ export const InventoryPage: React.FC = () => {
       setFormImagePreview(product.image_path ? getImageUrl(product.image_path) : "");
       setFormImageFile(null);
       setFormBarcode(product.barcode || "");
+      setFormBrand(product.brand || "");
       setFormVariants(product.variants || []);
     } else {
       setEditingProduct(null);
@@ -150,6 +153,7 @@ export const InventoryPage: React.FC = () => {
       setFormImagePreview("");
       setFormImageFile(null);
       setFormBarcode("");
+      setFormBrand("");
       setFormVariants([]);
     }
     setIsNewCategory(false);
@@ -173,9 +177,11 @@ export const InventoryPage: React.FC = () => {
   };
 
   const [lookupSource, setLookupSource] = useState<string | null>(null);
+  const [lookupLoading, setLookupLoading] = useState(false);
 
   const handleBarcodeLookup = async (barcode: string) => {
     try {
+      setLookupLoading(true);
       setLookupSource(null);
       const data = await productsApi.lookupBarcode(barcode);
       
@@ -193,7 +199,11 @@ export const InventoryPage: React.FC = () => {
         }
       }
       
-      if (data.brand) setFormDescription(data.brand);
+      if (data.brand) {
+        setFormBrand(data.brand);
+        // If it's a food product, description is usually the name or brand
+        if (!formDescription) setFormDescription(data.name || "");
+      }
       if (data.image) {
         setFormImagePreview(data.image);
         setFormImageFile(null); // Use the URL from API
@@ -206,6 +216,8 @@ export const InventoryPage: React.FC = () => {
     } catch (err: any) {
       console.error('Barcode lookup error:', err);
       setScanTip("❌ Product not found in any database.");
+    } finally {
+      setLookupLoading(false);
     }
   };
 
@@ -598,6 +610,8 @@ export const InventoryPage: React.FC = () => {
       const formData = new FormData();
       formData.append('name', formName);
       formData.append('description', formDescription);
+      formData.append('brand', formBrand);
+      formData.append('barcode', formBarcode);
       formData.append('price_php', formPricePhp);
       formData.append('price_jpy', formPriceJpy);
       formData.append('category_id', categoryId);
@@ -639,13 +653,6 @@ export const InventoryPage: React.FC = () => {
     } finally {
       setSaving(false);
     }
-  };
-
-  const getImageUrl = (path: string) => {
-    if (!path) return 'https://placehold.co/100x100/f9a8d4/831843?text=No+Img';
-    if (path.startsWith('http')) return path;
-    const normalizedPath = path.startsWith('/') ? path : `/${path}`;
-    return `${API_HOST}${normalizedPath}`;
   };
 
   return (
@@ -939,12 +946,35 @@ export const InventoryPage: React.FC = () => {
                 
                 <div className="md:col-span-2">
                   <label className="block text-sm font-semibold text-gray-600 dark:text-gray-400 mb-1">Barcode / JAN Code</label>
-                  <input type="text" value={formBarcode} onChange={e => setFormBarcode(e.target.value)} className="input" placeholder="e.g. 4901234567890" />
+                  <div className="flex gap-2">
+                    <input 
+                      type="text" 
+                      value={formBarcode} 
+                      onChange={e => setFormBarcode(e.target.value)} 
+                      onKeyDown={e => e.key === 'Enter' && (e.preventDefault(), handleBarcodeLookup(formBarcode))}
+                      className="input flex-1" 
+                      placeholder="e.g. 4901234567890" 
+                    />
+                    <button 
+                      type="button" 
+                      onClick={() => handleBarcodeLookup(formBarcode)}
+                      disabled={!formBarcode || lookupLoading}
+                      className="px-4 bg-gray-100 text-gray-600 rounded-xl hover:bg-gray-200 transition-all font-bold text-xs uppercase tracking-wider disabled:opacity-50 flex items-center gap-2"
+                    >
+                      {lookupLoading ? <Loader2 size={16} className="animate-spin" /> : <Search size={16} />}
+                      Lookup
+                    </button>
+                  </div>
                 </div>
 
                 <div className="md:col-span-2">
                   <label className="block text-sm font-semibold text-gray-600 dark:text-gray-400 mb-1">Brand Name (Optional)</label>
-                  <input type="text" value={formDescription} onChange={e => setFormDescription(e.target.value)} className="input" placeholder="e.g. Shiseido, Meiji, SK-II" />
+                  <input type="text" value={formBrand} onChange={e => setFormBrand(e.target.value)} className="input" placeholder="e.g. Shiseido, Meiji, SK-II" />
+                </div>
+
+                <div className="md:col-span-2">
+                  <label className="block text-sm font-semibold text-gray-600 dark:text-gray-400 mb-1">Description / Product Notes</label>
+                  <textarea value={formDescription} onChange={e => setFormDescription(e.target.value)} className="input min-h-[80px] py-3" placeholder="Additional details about the product..." />
                 </div>
 
                 <div>

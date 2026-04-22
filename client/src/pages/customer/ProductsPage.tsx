@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Search, MessageSquare, ShoppingCart } from 'lucide-react';
 import { productsApi, categoriesApi, configApi } from '../../utils/api';
 import { useCartStore } from '../../store/cartStore';
+import { getImageUrl } from '../../utils/image';
 
 interface Variant {
   id: number;
@@ -34,14 +35,7 @@ interface Category {
   name: string;
 }
 
-const API_HOST = import.meta.env.VITE_API_URL || 'http://localhost:5000';
 
-const getImageUrl = (path: string | null | undefined) => {
-  if (!path || typeof path !== 'string') return 'https://images.unsplash.com/photo-1578916171728-46686eac8d58?auto=format&fit=crop&q=80';
-  if (path.startsWith('http')) return path;
-  const normalizedPath = path.startsWith('/') ? path : `/${path}`;
-  return `${API_HOST}${normalizedPath}`;
-};
 
 
 /* ─────────────────────────────────────────────── */

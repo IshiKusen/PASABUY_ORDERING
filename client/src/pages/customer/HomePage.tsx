@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { ShoppingCart, ArrowRight, Package, Truck, CheckCircle, MessageSquare, Clock, Shield, Star, ChevronRight, Smartphone } from 'lucide-react';
 import { productsApi, configApi } from '../../utils/api';
+import { getImageUrl } from '../../utils/image';
 import { useCartStore } from '../../store/cartStore';
 import logo from '../../../Images/PasabuyLogo.png';
 
@@ -30,15 +31,6 @@ interface Product {
   min_price?: number;
   max_price?: number;
 }
-
-const API_HOST = import.meta.env.VITE_API_URL || 'http://localhost:5000';
-
-const getImageUrl = (path: string | null | undefined) => {
-  if (!path || typeof path !== 'string') return 'https://images.unsplash.com/photo-1578916171728-46686eac8d58?auto=format&fit=crop&q=80';
-  if (path.startsWith('http')) return path;
-  const normalizedPath = path.startsWith('/') ? path : `/${path}`;
-  return `${API_HOST}${normalizedPath}`;
-};
 
 export const HomePage: React.FC = () => {
   const [featuredProducts, setFeaturedProducts] = useState<Product[]>([]);

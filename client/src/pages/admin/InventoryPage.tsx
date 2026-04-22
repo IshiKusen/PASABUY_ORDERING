@@ -11,12 +11,12 @@ import {
   ImageIcon, 
   Loader2, 
   Camera, 
-  RotateCw, 
   Check, 
   Settings, 
-  ScanBarcode, 
   Zap,
-  Barcode
+  Barcode,
+  Keyboard,
+  RefreshCw
 } from 'lucide-react';
 import { Html5Qrcode, Html5QrcodeSupportedFormats } from 'html5-qrcode';
 import { productsApi, categoriesApi } from '../../utils/api';
@@ -48,6 +48,7 @@ interface Product {
   has_variants?: boolean;
   min_price?: string;
   max_price?: string;
+  barcode?: string;
 }
 
 interface Category {
@@ -77,6 +78,7 @@ export const InventoryPage: React.FC = () => {
   const [editingCategoryId, setEditingCategoryId] = useState<number | null>(null);
   const [editCategoryName, setEditCategoryName] = useState("");
   const [formStock, setFormStock] = useState("");
+  const [formBarcode, setFormBarcode] = useState("");
   const [formImageFile, setFormImageFile] = useState<File | null>(null);
   const [formImagePreview, setFormImagePreview] = useState("");
   const [dragActive, setDragActive] = useState(false);
@@ -90,15 +92,12 @@ export const InventoryPage: React.FC = () => {
 
   // Live Camera States
   const [isLiveCameraOpen, setIsLiveCameraOpen] = useState(false);
-  const [cameraStream, setCameraStream] = useState<MediaStream | null>(null);
   const [facingMode, setFacingMode] = useState<'user' | 'environment'>('environment');
   const [isFlashing, setIsFlashing] = useState(false);
-  const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
   // Barcode Scanner States
-  const [isBarcodeScannerOpen, setIsBarcodeScannerOpen] = useState(false);
-  const [lookupLoading, setLookupLoading] = useState(false);
+  // (Using local discovery states instead of global lookupLoading for now)
 
   // Load data
   useEffect(() => {
@@ -138,6 +137,7 @@ export const InventoryPage: React.FC = () => {
       setFormStock(String(product.stock));
       setFormImagePreview(product.image_path ? getImageUrl(product.image_path) : "");
       setFormImageFile(null);
+      setFormBarcode(product.barcode || "");
       setFormVariants(product.variants || []);
     } else {
       setEditingProduct(null);
@@ -149,6 +149,7 @@ export const InventoryPage: React.FC = () => {
       setFormStock("");
       setFormImagePreview("");
       setFormImageFile(null);
+      setFormBarcode("");
       setFormVariants([]);
     }
     setIsNewCategory(false);
@@ -175,12 +176,12 @@ export const InventoryPage: React.FC = () => {
 
   const handleBarcodeLookup = async (barcode: string) => {
     try {
-      setLookupLoading(true);
       setLookupSource(null);
       const data = await productsApi.lookupBarcode(barcode);
       
       if (data.name) {
         setFormName(data.name);
+        setFormBarcode(barcode);
         setLookupSource(data.source || 'Database');
         
         if (data.source === 'gemini-ai') {
@@ -199,124 +200,24 @@ export const InventoryPage: React.FC = () => {
       }
       
       // Don't close immediately if AI was used, so user can see the tip
-      if (data.source !== 'gemini-ai') {
-        setIsBarcodeScannerOpen(false);
+      if (data.source !== 'gemini-ai' && isLiveCameraOpen) {
+        stopLiveCamera();
       }
     } catch (err: any) {
       console.error('Barcode lookup error:', err);
       setScanTip("❌ Product not found in any database.");
-    } finally {
-      setLookupLoading(false);
     }
   };
 
-  const barcodeScannerRef = useRef<Html5Qrcode | null>(null);
-
-  const [scanTip, setScanTip] = useState("");
-  const [isTorchOn, setIsTorchOn] = useState(false);
-  const [hasTorch, setHasTorch] = useState(false);
   const [manualBarcode, setManualBarcode] = useState("");
   const [showManualInput, setShowManualInput] = useState(false);
   const [liveDetectedCode, setLiveDetectedCode] = useState<string | null>(null);
+  const [scanTip, setScanTip] = useState("💡 TIP: Tap the screen to focus!");
+  const [isTorchOn, setIsTorchOn] = useState(false);
+  const [hasTorch, setHasTorch] = useState(false);
 
-  // Barcode Scanner Lifecycle
-  useEffect(() => {
-    const cleanupAllCameras = () => {
-      if (cameraStream) {
-        cameraStream.getTracks().forEach(track => track.stop());
-        setCameraStream(null);
-      }
-      setIsLiveCameraOpen(false);
-    };
-
-    if (isBarcodeScannerOpen) {
-      cleanupAllCameras();
-      setScanTip("Searching for barcode...");
-      setIsTorchOn(false);
-      setHasTorch(false);
-      setLiveDetectedCode(null);
-      
-      let t1: any;
-      let t2: any;
-
-      const timer = setTimeout(() => {
-        // Universal Mode: Supports ALL barcode and QR formats
-        const scanner = new Html5Qrcode("barcode-reader", {
-          formatsToSupport: [
-            Html5QrcodeSupportedFormats.EAN_13,
-            Html5QrcodeSupportedFormats.EAN_8,
-            Html5QrcodeSupportedFormats.UPC_A,
-            Html5QrcodeSupportedFormats.UPC_E,
-            Html5QrcodeSupportedFormats.CODE_128,
-            Html5QrcodeSupportedFormats.QR_CODE
-          ],
-          verbose: false
-        });
-        barcodeScannerRef.current = scanner;        const config = { 
-          fps: 60, 
-          qrbox: { width: 280, height: 160 }, // Fixed rectangular box for better focus
-          aspectRatio: 1.777778, 
-          disableFlip: true,
-          videoConstraints: {
-            facingMode: "environment",
-            width: { ideal: 1280 },
-            height: { ideal: 720 },
-            focusMode: "continuous"
-          }
-        };
-        
-        t1 = setTimeout(() => setScanTip("💡 TIP: Keep some white space around the barcode!"), 4000);
-        t2 = setTimeout(() => setScanTip("🔦 Use the FLASH if lines look gray!"), 8000);
-        
-        const onScanSuccess = (decodedText: string) => {
-          // Discovery Mode: Show the code but don't search yet
-          setLiveDetectedCode(decodedText);
-          
-          // Light feedback
-          if (navigator.vibrate) navigator.vibrate(50);
-        };
-
-        scanner.start(
-          { facingMode: "environment" }, 
-          config,
-          onScanSuccess,
-          () => {} 
-        ).then(() => {
-          setHasTorch(true); 
-          // Enable Tap to Focus
-          setTimeout(() => {
-            const videoElement = document.querySelector('#barcode-reader video');
-            if (videoElement) {
-              videoElement.addEventListener('click', () => {
-                try {
-                  const track = (scanner as any).getRunningTrack();
-                  if (track && track.applyConstraints) {
-                    track.applyConstraints({ advanced: [{ focusMode: "continuous" } as any] });
-                    setScanTip("🎯 Focusing...");
-                  }
-                } catch (e) {}
-              });
-            }
-          }, 1000);
-        }).catch(err => {
-          console.error("Scanner failed, falling back...", err);
-          scanner.start({ facingMode: "environment" }, config, onScanSuccess, () => {});
-        });
-      }, 500);
-      
-      return () => {
-        clearTimeout(timer);
-        clearTimeout(t1);
-        clearTimeout(t2);
-        if (barcodeScannerRef.current) {
-          if (barcodeScannerRef.current.isScanning) {
-            barcodeScannerRef.current.stop().catch(e => console.error(e));
-          }
-          barcodeScannerRef.current = null;
-        }
-      };
-    }
-  }, [isBarcodeScannerOpen]);
+  // The scanner instance will be managed within the Live Camera lifecycle
+  const barcodeScannerRef = useRef<Html5Qrcode | null>(null);
 
   // Flashlight Toggle
   const toggleTorch = async () => {
@@ -442,43 +343,89 @@ export const InventoryPage: React.FC = () => {
     }
   };
 
-  // Live Camera Logic
+  // Unified Live Camera & Scanner Logic
   const startLiveCamera = async (mode: 'user' | 'environment' = 'environment') => {
     try {
-      if (cameraStream) {
-        cameraStream.getTracks().forEach(track => track.stop());
-      }
-      
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: { 
-          facingMode: mode
-        },
-        audio: false
-      });
-      
-      setCameraStream(stream);
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-      }
       setIsLiveCameraOpen(true);
+      setLiveDetectedCode(null);
+      setScanTip("💡 TIP: Tap screen to focus!");
+      
+      const scanner = new Html5Qrcode("live-camera-container", {
+        formatsToSupport: [
+          Html5QrcodeSupportedFormats.EAN_13,
+          Html5QrcodeSupportedFormats.EAN_8,
+          Html5QrcodeSupportedFormats.UPC_A,
+          Html5QrcodeSupportedFormats.UPC_E,
+          Html5QrcodeSupportedFormats.CODE_128,
+          Html5QrcodeSupportedFormats.QR_CODE
+        ],
+        verbose: false
+      });
+      barcodeScannerRef.current = scanner;
+
+      const config = { 
+        fps: 30, 
+        qrbox: { width: 280, height: 160 },
+        aspectRatio: 1.777778, 
+        disableFlip: true
+      };
+
+      await scanner.start(
+        { facingMode: mode },
+        config,
+        (decodedText) => {
+          setLiveDetectedCode(decodedText);
+          if (navigator.vibrate) navigator.vibrate(50);
+        },
+        () => {}
+      );
+
+      setHasTorch(true);
+      
+      // Tap to Focus logic
+      setTimeout(() => {
+        const videoElement = document.querySelector('#live-camera-container video');
+        if (videoElement) {
+          videoElement.addEventListener('click', () => {
+            try {
+              const track = (scanner as any).getRunningTrack();
+              if (track && track.applyConstraints) {
+                track.applyConstraints({ advanced: [{ focusMode: "continuous" } as any] });
+                setScanTip("🎯 Focusing...");
+                setTimeout(() => setScanTip("💡 TIP: Tap screen to focus!"), 2000);
+              }
+            } catch (e) {}
+          });
+        }
+      }, 1000);
+
     } catch (err) {
-      console.error("Camera error:", err);
+      console.error("Camera/Scanner error:", err);
       alert("Could not access camera. Please check permissions.");
+      setIsLiveCameraOpen(false);
     }
   };
 
-  const stopLiveCamera = () => {
-    if (cameraStream) {
-      cameraStream.getTracks().forEach(track => track.stop());
-      setCameraStream(null);
+  const stopLiveCamera = async () => {
+    if (barcodeScannerRef.current) {
+      try {
+        if (barcodeScannerRef.current.isScanning) {
+          await barcodeScannerRef.current.stop();
+        }
+      } catch (e) {
+        console.error("Stop scanner error:", e);
+      }
+      barcodeScannerRef.current = null;
     }
     setIsLiveCameraOpen(false);
+    setLiveDetectedCode(null);
+    setTargetVariantIndex(null);
   };
 
   const flipCamera = () => {
     const newMode = facingMode === 'user' ? 'environment' : 'user';
     setFacingMode(newMode);
-    startLiveCamera(newMode);
+    stopLiveCamera().then(() => startLiveCamera(newMode));
   };
 
   const handleEditCategory = (id: number, name: string) => {
@@ -510,9 +457,11 @@ export const InventoryPage: React.FC = () => {
   };
 
   const capturePhoto = () => {
-    if (videoRef.current && canvasRef.current) {
-      const video = videoRef.current;
-      const canvas = canvasRef.current;
+    const container = document.getElementById('live-camera-container');
+    const video = container?.querySelector('video');
+    const canvas = canvasRef.current;
+
+    if (video && canvas) {
       canvas.width = video.videoWidth;
       canvas.height = video.videoHeight;
       
@@ -535,6 +484,8 @@ export const InventoryPage: React.FC = () => {
                 image_preview: URL.createObjectURL(file) 
               };
               setFormVariants(updated);
+              // Reset target index after capture
+              setTargetVariantIndex(null);
             } else {
               setFormImageFile(file);
               setFormImagePreview(URL.createObjectURL(file));
@@ -603,6 +554,7 @@ export const InventoryPage: React.FC = () => {
       formData.append('price_jpy', formPriceJpy);
       formData.append('category_id', categoryId);
       formData.append('stock', formStock);
+      formData.append('barcode', formBarcode);
       
       if (formImageFile) {
         formData.append('image', formImageFile);
@@ -648,112 +600,167 @@ export const InventoryPage: React.FC = () => {
     return `${API_HOST}${normalizedPath}`;
   };
 
-
-  const categoryList = ["All", ...categories.map(c => c.name)];
-
-  if (loading && products.length === 0) {
-    return (
-      <div className="flex items-center justify-center min-h-[40vh]">
-        <Loader2 className="animate-spin text-primary-500" size={48} />
-      </div>
-    );
-  }
-
   return (
-    <div className="space-y-6 animate-fade-in relative">
-      {/* Header Actions */}
-      <div className="flex flex-col md:flex-row justify-between items-center gap-4">
-        <div className="relative w-full md:w-[400px]">
+    <div className="p-4 md:p-8 max-w-7xl mx-auto pb-24">
+      {/* Header section with Stats */}
+      <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-8">
+        <div>
+          <h1 className="text-3xl font-black text-gray-900 dark:text-white tracking-tight flex items-center gap-3">
+            <Package className="text-primary-500" size={32} />
+            Inventory <span className="text-gray-400 font-light">Management</span>
+          </h1>
+          <p className="text-gray-500 dark:text-gray-400 mt-1 font-medium">Track stock levels, variants, and product details.</p>
+        </div>
+        
+        <div className="flex gap-3">
+           <button 
+             onClick={() => setIsCategoryManagerOpen(true)}
+             className="btn-secondary flex items-center gap-2 group"
+           >
+             <Settings size={18} className="group-hover:rotate-90 transition-transform duration-500" />
+             <span>Categories</span>
+           </button>
+           <button 
+             onClick={() => handleOpenModal()} 
+             className="btn-primary flex items-center gap-2 shadow-lg shadow-primary-500/25"
+           >
+             <Plus size={20} />
+             <span>Add Product</span>
+           </button>
+        </div>
+      </div>
+
+      {/* Filters and Search Bar */}
+      <div className="bg-white dark:bg-dark-surface p-4 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-800 mb-6 flex flex-col md:flex-row gap-4 items-center">
+        <div className="relative flex-1 w-full">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
-          <input
-            type="text"
-            placeholder="Search products..."
-            className="input pl-10"
+          <input 
+            type="text" 
+            placeholder="Search by name, brand, or barcode..." 
+            className="input pl-10 w-full"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
           />
         </div>
         
-        <div className="flex gap-3 w-full md:w-auto">
-          <div className="relative w-full md:w-auto">
-            <Filter className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" size={18} />
-            <select 
-              className="input pl-10 pr-10 appearance-none bg-white dark:bg-dark-surface"
-              value={activeCategoryFilter}
-              onChange={(e) => setActiveCategoryFilter(e.target.value)}
-            >
-              {categoryList.map(cat => (
-                <option key={cat} value={cat}>{cat === "All" ? "All Categories" : cat}</option>
-              ))}
-            </select>
-          </div>
+        <div className="flex items-center gap-2 w-full md:w-auto overflow-x-auto pb-2 md:pb-0 scrollbar-hide">
+          <Filter size={16} className="text-gray-400 shrink-0" />
           <button 
-            className="btn-primary flex-1 md:flex-none flex items-center justify-center gap-2 px-6"
-            onClick={() => handleOpenModal()}
+            onClick={() => setActiveCategoryFilter("All")}
+            className={`px-4 py-2 rounded-xl text-sm font-bold transition-all whitespace-nowrap ${
+              activeCategoryFilter === "All" 
+              ? "bg-primary-500 text-white shadow-md shadow-primary-500/20" 
+              : "bg-gray-50 dark:bg-dark-surfaceAlt text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700"
+            }`}
           >
-            <Plus size={18} />
-            Add Product
+            All
           </button>
+          {categories.map(cat => (
+            <button 
+              key={cat.id}
+              onClick={() => setActiveCategoryFilter(cat.name)}
+              className={`px-4 py-2 rounded-xl text-sm font-bold transition-all whitespace-nowrap ${
+                activeCategoryFilter === cat.name 
+                ? "bg-primary-500 text-white shadow-md shadow-primary-500/20" 
+                : "bg-gray-50 dark:bg-dark-surfaceAlt text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700"
+              }`}
+            >
+              {cat.name}
+            </button>
+          ))}
         </div>
       </div>
 
-      {/* Inventory Table */}
-      {products.length > 0 ? (
-        <div className="card overflow-hidden">
+      {/* Main Inventory Table/Grid */}
+      <div className="bg-white dark:bg-dark-surface rounded-2xl shadow-sm border border-gray-100 dark:border-gray-800 overflow-hidden">
+        {loading ? (
+          <div className="p-20 flex flex-col items-center justify-center gap-4">
+            <Loader2 className="animate-spin text-primary-500" size={40} />
+            <p className="text-gray-400 font-medium animate-pulse">Loading inventory...</p>
+          </div>
+        ) : products.length === 0 ? (
+          <div className="p-20 flex flex-col items-center justify-center gap-4 text-center">
+            <div className="w-20 h-20 bg-gray-50 dark:bg-dark-surfaceAlt rounded-full flex items-center justify-center">
+              <Package size={40} className="text-gray-300" />
+            </div>
+            <div>
+              <h3 className="text-lg font-bold text-gray-900 dark:text-white">No products found</h3>
+              <p className="text-gray-500 max-w-xs">Start by adding your first product to the inventory.</p>
+            </div>
+          </div>
+        ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse">
               <thead>
-                <tr className="bg-gray-50 dark:bg-dark-surfaceAlt border-b border-gray-100 dark:border-gray-800">
-                  <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Product</th>
-                  <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Category</th>
-                  <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Price (PHP/JPY)</th>
-                  <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Stock</th>
-                  <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider text-right">Actions</th>
+                <tr className="bg-gray-50 dark:bg-dark-surfaceAlt border-b dark:border-gray-800">
+                  <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-gray-400">Product Info</th>
+                  <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-gray-400">Category</th>
+                  <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-gray-400">Price (PHP)</th>
+                  <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-gray-400">Stock</th>
+                  <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-gray-400 text-right">Actions</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
-                {products.map((product) => (
-                  <tr key={product.id} className="hover:bg-gray-50/50 dark:hover:bg-dark-surfaceAlt/50 transition-colors group">
+              <tbody className="divide-y dark:divide-gray-800">
+                {products.map(product => (
+                  <tr key={product.id} className="hover:bg-gray-50/50 dark:hover:bg-white/5 transition-colors group">
                     <td className="px-6 py-4">
-                      <div className="flex items-center gap-3">
-                        <img src={getImageUrl(product.image_path)} alt={product.name} className="w-10 h-10 rounded-lg object-cover bg-gray-100" />
+                      <div className="flex items-center gap-4">
+                        <div className="w-12 h-12 rounded-xl overflow-hidden bg-gray-100 dark:bg-dark-surfaceAlt flex-shrink-0 border border-gray-100 dark:border-gray-800">
+                          <img 
+                            src={getImageUrl(product.image_path)} 
+                            alt={product.name} 
+                            className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
+                            onError={(e) => {
+                                (e.target as HTMLImageElement).src = 'https://placehold.co/100x100/f9a8d4/831843?text=No+Img';
+                            }}
+                          />
+                        </div>
                         <div>
-                          <p className="text-sm font-bold dark:text-white truncate max-w-[200px]" title={product.name}>{product.name}</p>
-                          <p className="text-[10px] text-gray-400">ID: {product.id}</p>
+                          <h4 className="font-bold text-gray-900 dark:text-white line-clamp-1">{product.name}</h4>
+                          <p className="text-xs text-gray-400 font-medium">{product.description || 'No brand specified'}</p>
                         </div>
                       </div>
                     </td>
                     <td className="px-6 py-4">
-                      <span className="px-2.5 py-1 rounded-full bg-primary-50 dark:bg-primary-900/20 text-primary-600 dark:text-primary-400 text-xs font-bold">
+                      <span className="px-2.5 py-1 rounded-lg bg-gray-100 dark:bg-dark-surfaceAlt text-gray-600 dark:text-gray-400 text-[10px] font-bold uppercase border border-gray-200/50 dark:border-gray-700/50">
                         {product.category_name}
                       </span>
                     </td>
                     <td className="px-6 py-4">
-                      <div className="text-sm">
-                        <p className="font-bold dark:text-white">
-                          {product.has_variants && Number(product.min_price) !== Number(product.max_price)
-                            ? `₱${Number(product.min_price).toLocaleString()} - ${Number(product.max_price).toLocaleString()}`
-                            : `₱${Number(product.min_price || product.price_php).toLocaleString()}`
-                          }
-                        </p>
-                        <p className="text-xs text-gray-400">
-                          {product.has_variants ? 'Multi-variant' : `¥${Number(product.price_jpy).toLocaleString()}`}
-                        </p>
+                      <div className="flex flex-col">
+                        <span className="font-bold text-gray-900 dark:text-white">
+                          {product.has_variants 
+                            ? `₱${Number(product.min_price).toLocaleString()} - ₱${Number(product.max_price).toLocaleString()}`
+                            : `₱${Number(product.price_php).toLocaleString()}`}
+                        </span>
+                        {product.price_jpy && !product.has_variants && (
+                          <span className="text-[10px] text-gray-400 font-medium italic">~ ¥{Number(product.price_jpy).toLocaleString()}</span>
+                        )}
                       </div>
                     </td>
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-2">
-                         <div className={`w-2 h-2 rounded-full ${product.stock > 10 ? 'bg-green-500' : 'bg-orange-500'}`}></div>
-                         <span className="text-sm font-medium dark:text-white">{product.stock} pcs</span>
+                        <span className={`w-2 h-2 rounded-full ${Number(product.stock) > 10 ? 'bg-green-500' : Number(product.stock) > 0 ? 'bg-yellow-500' : 'bg-red-500'}`} />
+                        <span className={`font-bold ${Number(product.stock) === 0 ? 'text-red-500' : 'text-gray-700 dark:text-gray-300'}`}>
+                          {product.stock}
+                        </span>
                       </div>
                     </td>
                     <td className="px-6 py-4 text-right">
-                      <div className="flex items-center justify-end gap-2 sm:opacity-0 group-hover:opacity-100 transition-opacity">
-                        <button onClick={() => handleOpenModal(product)} className="p-2 text-gray-400 hover:text-primary-500 hover:bg-primary-50 dark:hover:bg-primary-900/20 rounded-lg transition-all" title="Edit">
-                          <Edit2 size={16} />
+                      <div className="flex items-center justify-end gap-2">
+                        <button 
+                          onClick={() => handleOpenModal(product)}
+                          className="p-2 text-primary-600 hover:bg-primary-50 dark:hover:bg-primary-900/20 rounded-xl transition-colors"
+                          title="Edit Product"
+                        >
+                          <Edit2 size={18} />
                         </button>
-                        <button onClick={() => handleDelete(product)} className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-all" title="Delete">
-                          <Trash2 size={16} />
+                        <button 
+                          onClick={() => handleDelete(product)}
+                          className="p-2 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-xl transition-colors"
+                          title="Delete Product"
+                        >
+                          <Trash2 size={18} />
                         </button>
                       </div>
                     </td>
@@ -762,129 +769,92 @@ export const InventoryPage: React.FC = () => {
               </tbody>
             </table>
           </div>
-        </div>
-      ) : (
-        <div className="text-center py-20 bg-white dark:bg-dark-surface rounded-2xl border border-dashed border-gray-200 dark:border-gray-800">
-          <div className="bg-gray-50 dark:bg-dark-surfaceAlt w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4 text-gray-300">
-            <Package size={32} />
-          </div>
-          <h3 className="text-lg font-bold dark:text-white">No items found</h3>
-          <p className="text-gray-500 text-sm mt-1">Try a different filter or add a new product.</p>
-          <button className="btn-primary mt-6" onClick={() => handleOpenModal()}>Add New Product</button>
-        </div>
-      )}
+        )}
+      </div>
 
-      {/* Product Modal */}
+      {/* Product Modal (Add/Edit) */}
       {isModalOpen && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center backdrop-blur-sm bg-black/60 p-0 sm:p-4 animate-fade-in">
-          <div className="bg-white dark:bg-dark-surface w-full max-w-2xl rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-full sm:max-h-[90vh] animate-scale-up">
-            <div className="flex justify-between items-center p-5 sm:p-6 border-b dark:border-gray-800">
-              <h2 className="text-xl font-bold dark:text-white">{editingProduct ? 'Edit Product' : 'Add New Product'}</h2>
-              <button onClick={handleCloseModal} className="p-2 text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-full">
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-300">
+          <div className="bg-white dark:bg-dark-surface w-full max-w-2xl rounded-[2rem] shadow-2xl flex flex-col max-h-[90vh] overflow-hidden border border-white/10">
+            {/* Modal Header */}
+            <div className="p-6 border-b dark:border-gray-800 flex items-center justify-between bg-gray-50/50 dark:bg-white/5">
+              <div>
+                <h2 className="text-xl font-black text-gray-900 dark:text-white tracking-tight">
+                  {editingProduct ? 'Edit Product' : 'Add New Product'}
+                </h2>
+                <p className="text-xs text-gray-500 font-medium mt-0.5">Fill in the details below to save to inventory.</p>
+              </div>
+              <button onClick={handleCloseModal} className="p-2 hover:bg-gray-200 dark:hover:bg-gray-800 rounded-full transition-colors">
                 <X size={20} />
               </button>
             </div>
 
-            <form className="p-6 overflow-y-auto space-y-5" onSubmit={handleSave}>
-              
-              {/* Image Upload */}
-              <div>
-                <label className="block text-sm font-semibold text-gray-600 dark:text-gray-400 mb-2">Product Image</label>
+            <form onSubmit={handleSave} className="overflow-y-auto flex-1 p-6 space-y-6 scrollbar-thin">
+              {/* Image Upload Area */}
+              <div className="flex flex-col items-center justify-center">
                 <div 
-                  className={`relative border-2 border-dashed rounded-xl p-8 text-center transition-all cursor-pointer ${
-                    dragActive 
-                      ? 'border-primary-500 bg-primary-50 dark:bg-primary-900/10' 
-                      : 'border-gray-300 dark:border-gray-700 hover:border-primary-400 hover:bg-gray-50 dark:hover:bg-gray-800'
+                  className={`w-full h-48 rounded-2xl border-2 border-dashed flex flex-col items-center justify-center transition-all cursor-pointer overflow-hidden relative group ${
+                    dragActive ? 'border-primary-500 bg-primary-50 dark:bg-primary-900/10' : 'border-gray-200 dark:border-gray-800 hover:border-primary-400'
                   }`}
                   onDragEnter={handleDrag}
                   onDragLeave={handleDrag}
                   onDragOver={handleDrag}
                   onDrop={handleDrop}
                   onPaste={handlePaste}
+                  onClick={() => fileInputRef.current?.click()}
+                  onContextMenu={(e) => { e.preventDefault(); handleTouchStart(); }}
                   onTouchStart={handleTouchStart}
                   onTouchEnd={handleTouchEnd}
-                  onClick={() => {
-                    if (showPasteButton) {
-                      setShowPasteButton(false);
-                    } else {
-                      setTargetVariantIndex(null);
-                      fileInputRef.current?.click();
-                    }
-                  }}
-                  tabIndex={0}
                 >
-                  
-                  {showPasteButton && (
-                    <div className="absolute inset-0 z-20 flex items-center justify-center bg-black/60 backdrop-blur-sm animate-fade-in rounded-xl">
-                      <button 
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handlePaste(null as any);
-                        }}
-                        className="bg-white text-primary-600 px-6 py-3 rounded-full font-bold shadow-2xl flex items-center gap-2 transform scale-110 active:scale-95 transition-transform"
-                      >
-                        <UploadCloud size={20} />
-                        Paste from Clipboard
-                      </button>
-                      <button 
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setTargetVariantIndex(null);
-                          setShowPasteButton(false);
-                        }}
-                        className="absolute top-4 right-4 text-white/70 hover:text-white"
-                      >
-                        <X size={24} />
-                      </button>
-                    </div>
-                  )}
                   {formImagePreview ? (
-                    <div className="relative w-full h-48 sm:h-64 rounded-lg overflow-hidden flex items-center justify-center bg-gray-100 dark:bg-dark-surfaceAlt">
+                    <div className="relative w-full h-full">
                        <img src={formImagePreview} alt="Preview" className="w-full h-full object-contain" />
-                       <div className="absolute inset-0 bg-black/40 opacity-0 hover:opacity-100 transition-opacity flex items-center justify-center gap-4">
-                          <button 
-                            type="button" 
-                            onClick={(e) => { e.stopPropagation(); setTargetVariantIndex(null); fileInputRef.current?.click(); }}
-                            className="text-white font-medium flex flex-col items-center gap-1 hover:text-primary-300 transition-colors"
-                          >
-                            <UploadCloud size={24} />
-                            <span className="text-[10px]">Replace File</span>
-                          </button>
-                          <button 
-                            type="button" 
-                            onClick={(e) => { e.stopPropagation(); setTargetVariantIndex(null); startLiveCamera('environment'); }}
-                            className="text-white font-medium flex flex-col items-center gap-1 hover:text-primary-300 transition-colors"
-                          >
+                       <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-3">
+                          <button type="button" onClick={(e) => { e.stopPropagation(); startLiveCamera('environment'); }} className="p-3 bg-white/20 backdrop-blur-md rounded-full text-white hover:bg-white/40">
                             <Camera size={24} />
-                            <span className="text-[10px]">New Photo</span>
+                          </button>
+                          <button type="button" onClick={(e) => { e.stopPropagation(); fileInputRef.current?.click(); }} className="p-3 bg-white/20 backdrop-blur-md rounded-full text-white hover:bg-white/40">
+                            <UploadCloud size={24} />
                           </button>
                        </div>
                     </div>
                   ) : (
-                    <div className="flex flex-col items-center justify-center py-6">
-                      <div className="w-12 h-12 bg-primary-100 dark:bg-primary-900/30 text-primary-500 rounded-full flex items-center justify-center mb-3">
-                        <ImageIcon size={24} />
+                    <div className="flex flex-col items-center gap-3 p-6 text-center">
+                      <div className="w-12 h-12 bg-primary-50 dark:bg-primary-900/20 rounded-full flex items-center justify-center text-primary-500">
+                        <UploadCloud size={24} />
                       </div>
-                      <p className="text-sm font-bold text-gray-700 dark:text-gray-300">Click to upload or drag and drop</p>
-                      <p className="text-xs text-gray-500 mt-1 mb-4">SVG, PNG, JPG or GIF (Auto-fit to square)</p>
-                      
-                      <div className="flex gap-3">
+                      <div>
+                        <p className="text-sm font-bold text-gray-700 dark:text-gray-300">Drop image here or click to upload</p>
+                        <p className="text-[10px] text-gray-400 uppercase tracking-widest mt-1">Supports PNG, JPG, JPEG • Pasting allowed</p>
+                      </div>
+                      <button 
+                        type="button" 
+                        onClick={(e) => { e.stopPropagation(); startLiveCamera('environment'); }}
+                        className="mt-2 text-xs font-bold text-primary-500 hover:underline flex items-center gap-1.5"
+                      >
+                        <Camera size={14} />
+                        Or use live camera
+                      </button>
+                    </div>
+                  )}
+
+                  {/* Floating Paste Button for Mobile */}
+                  {showPasteButton && (
+                    <div className="absolute inset-0 bg-black/60 backdrop-blur-sm z-20 flex items-center justify-center p-4 animate-in zoom-in-95 duration-200">
+                      <div className="bg-white dark:bg-zinc-900 rounded-2xl p-4 shadow-2xl w-full max-w-[200px]">
                         <button 
                           type="button"
-                          onClick={(e) => { e.stopPropagation(); setTargetVariantIndex(null); fileInputRef.current?.click(); }}
-                          className="bg-white dark:bg-gray-800 border-2 border-primary-500 text-primary-500 px-4 py-2 rounded-xl text-xs font-bold hover:bg-primary-500 hover:text-white transition-all transform active:scale-95"
+                          onClick={(e) => { e.stopPropagation(); handlePaste(e as any); }}
+                          className="w-full py-3 bg-primary-500 text-white rounded-xl font-bold flex items-center justify-center gap-2"
                         >
-                          Browse Files
+                          Paste Image
                         </button>
                         <button 
                           type="button"
-                          onClick={(e) => { e.stopPropagation(); setTargetVariantIndex(null); startLiveCamera('environment'); }}
-                          className="bg-primary-500 text-white px-4 py-2 rounded-xl text-xs font-bold hover:bg-primary-600 shadow-md shadow-primary-500/20 transition-all flex items-center gap-2 transform active:scale-95"
+                          onClick={(e) => { e.stopPropagation(); setShowPasteButton(false); }}
+                          className="w-full py-2 text-gray-400 text-xs font-bold"
                         >
-                          <Camera size={16} />
-                          Take Photo
+                          Cancel
                         </button>
                       </div>
                     </div>
@@ -910,15 +880,20 @@ export const InventoryPage: React.FC = () => {
                     <input type="text" value={formName} onChange={e => setFormName(e.target.value)} className="input flex-1" placeholder="e.g. SK-II Facial Treatment Essence" required />
                     <button 
                       type="button" 
-                      onClick={() => setIsBarcodeScannerOpen(true)}
+                      onClick={() => startLiveCamera('environment')}
                       className="p-3 bg-primary-100 text-primary-600 rounded-xl hover:bg-primary-200 transition-all flex items-center justify-center shrink-0 shadow-sm active:scale-95"
-                      title="Scan Barcode"
+                      title="Open Camera / Scan Barcode"
                     >
-                      <ScanBarcode size={20} />
+                      <Camera size={20} />
                     </button>
                   </div>
                 </div>
                 
+                <div className="md:col-span-2">
+                  <label className="block text-sm font-semibold text-gray-600 dark:text-gray-400 mb-1">Barcode / JAN Code</label>
+                  <input type="text" value={formBarcode} onChange={e => setFormBarcode(e.target.value)} className="input" placeholder="e.g. 4901234567890" />
+                </div>
+
                 <div className="md:col-span-2">
                   <label className="block text-sm font-semibold text-gray-600 dark:text-gray-400 mb-1">Brand Name (Optional)</label>
                   <input type="text" value={formDescription} onChange={e => setFormDescription(e.target.value)} className="input" placeholder="e.g. Shiseido, Meiji, SK-II" />
@@ -927,208 +902,237 @@ export const InventoryPage: React.FC = () => {
                 <div>
                   <label className="block text-sm font-semibold text-gray-600 dark:text-gray-400 mb-1">Price (₱)</label>
                   <div className="relative">
-                    <span className="absolute left-3 top-1/2 -translate-y-1/2 font-bold text-gray-400">₱</span>
-                    <input type="number" value={formPricePhp} onChange={e => handlePhpChange(e.target.value)} className="input pl-8" placeholder="0.00" required />
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 font-bold">₱</span>
+                    <input 
+                      type="number" 
+                      value={formPricePhp} 
+                      onChange={e => handlePhpChange(e.target.value)} 
+                      className="input pl-8 w-full" 
+                      placeholder="0.00" 
+                      required 
+                    />
                   </div>
                 </div>
-                
+
                 <div>
                   <label className="block text-sm font-semibold text-gray-600 dark:text-gray-400 mb-1">Price (¥)</label>
                   <div className="relative">
-                    <span className="absolute left-3 top-1/2 -translate-y-1/2 font-bold text-gray-400">¥</span>
-                    <input type="number" value={formPriceJpy} onChange={e => handleJpyChange(e.target.value)} className="input pl-8" placeholder="0" />
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 font-bold">¥</span>
+                    <input 
+                      type="number" 
+                      value={formPriceJpy} 
+                      onChange={e => handleJpyChange(e.target.value)} 
+                      className="input pl-8 w-full" 
+                      placeholder="0" 
+                    />
                   </div>
                 </div>
 
                 <div>
-                  <div className="flex items-center justify-between mb-1">
-                    <label className="block text-sm font-semibold text-gray-600 dark:text-gray-400">Category</label>
-                    <button 
-                      type="button" 
-                      onClick={() => setIsCategoryManagerOpen(true)}
-                      className="text-[10px] font-bold text-primary-500 hover:text-primary-600 flex items-center gap-1 uppercase tracking-wider"
-                    >
-                      <Settings size={10} />
-                      Manage Categories
-                    </button>
+                  <label className="block text-sm font-semibold text-gray-600 dark:text-gray-400 mb-1">Category</label>
+                  <div className="flex gap-2">
+                    {!isNewCategory ? (
+                      <>
+                        <select 
+                          value={formCategory} 
+                          onChange={e => setFormCategory(e.target.value)} 
+                          className="input flex-1"
+                        >
+                          <option value="">Select Category</option>
+                          {categories.map(cat => (
+                            <option key={cat.id} value={cat.id}>{cat.name}</option>
+                          ))}
+                        </select>
+                        <button 
+                          type="button" 
+                          onClick={() => setIsNewCategory(true)}
+                          className="p-3 bg-gray-100 text-gray-600 rounded-xl hover:bg-gray-200 transition-all shrink-0"
+                        >
+                          <Plus size={20} />
+                        </button>
+                      </>
+                    ) : (
+                      <>
+                        <input 
+                          type="text" 
+                          value={newCategoryName} 
+                          onChange={e => setNewCategoryName(e.target.value)} 
+                          className="input flex-1" 
+                          placeholder="New category name"
+                          autoFocus
+                        />
+                        <button 
+                          type="button" 
+                          onClick={() => setIsNewCategory(false)}
+                          className="p-3 bg-gray-100 text-gray-600 rounded-xl hover:bg-gray-200 transition-all shrink-0"
+                        >
+                          <X size={20} />
+                        </button>
+                      </>
+                    )}
                   </div>
-                  {!isNewCategory ? (
-                    <select 
-                      className="input" 
-                      value={formCategory}
-                      onChange={(e) => {
-                        if (e.target.value === "ADD_NEW") {
-                          setIsNewCategory(true);
-                          setFormCategory("");
-                        } else {
-                          setFormCategory(e.target.value);
-                        }
-                      }}
-                    >
-                      {categories.map(cat => (
-                         <option key={cat.id} value={cat.id}>{cat.name}</option>
-                      ))}
-                      <option value="ADD_NEW" className="font-bold">+ Add New Category</option>
-                    </select>
-                  ) : (
-                    <div className="flex gap-2">
-                       <input type="text" className="input flex-1" placeholder="New category..." value={newCategoryName} onChange={e => setNewCategoryName(e.target.value)} autoFocus />
-                       <button type="button" onClick={() => { setIsNewCategory(false); setFormCategory(categories.length > 0 ? String(categories[0].id) : ""); }} className="btn-secondary px-3" title="Cancel">
-                         <X size={16} />
-                       </button>
-                    </div>
-                  )}
                 </div>
 
                 <div>
-                  <label className="block text-sm font-semibold text-gray-600 dark:text-gray-400 mb-1">Base Stock Quantity</label>
-                  <input type="number" value={formStock} onChange={e => setFormStock(e.target.value)} className="input" placeholder="0" required={formVariants.length === 0} />
+                  <label className="block text-sm font-semibold text-gray-600 dark:text-gray-400 mb-1">Base Stock</label>
+                  <input 
+                    type="number" 
+                    value={formStock} 
+                    onChange={e => setFormStock(e.target.value)} 
+                    className="input w-full" 
+                    placeholder="0" 
+                    required 
+                  />
                 </div>
               </div>
 
               {/* Variations Section */}
-              <div className="pt-4 border-t dark:border-gray-800">
-                 <div className="flex justify-between items-center mb-4">
-                   <h3 className="text-sm font-bold text-gray-700 dark:text-gray-300 uppercase tracking-wider">Product Variations (Optional)</h3>
-                   <button 
+              <div className="space-y-4 pt-4">
+                <div className="flex items-center justify-between">
+                  <h3 className="font-black text-gray-900 dark:text-white tracking-tight uppercase text-xs flex items-center gap-2">
+                    <Settings size={14} className="text-primary-500" />
+                    Product Variations
+                  </h3>
+                  <button 
                     type="button" 
                     onClick={addVariant}
-                    className="flex items-center gap-1.5 text-xs font-bold text-primary-500 hover:text-primary-600 transition-colors"
-                   >
-                     <Plus size={14} /> Add Variation
-                   </button>
-                 </div>
-                 <div className="space-y-4">
-                    {formVariants.map((variant, index) => (
-                      <div key={index} className="p-4 bg-gray-50 dark:bg-dark-surfaceAlt rounded-xl border border-gray-100 dark:border-gray-800 space-y-4">
-                        <div className="flex items-center justify-between">
-                          <span className="text-sm font-bold text-gray-400 uppercase tracking-tight">Variation #{index + 1}</span>
-                          <button 
-                            type="button" 
-                            onClick={() => setFormVariants(formVariants.filter((_, i) => i !== index))}
-                            className="p-1.5 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
-                          >
-                            <Trash2 size={16} />
-                          </button>
-                        </div>
-                        
-                        <div className="flex flex-col sm:flex-row gap-4">
-                          {/* Variant Image */}
-                          <div 
-                            className={`w-16 h-16 sm:w-20 sm:h-20 rounded-lg border-2 border-dashed flex flex-col items-center justify-center cursor-pointer overflow-hidden relative shrink-0 transition-all ${
-                              variant.image_preview || variant.image_path
-                                ? 'border-primary-200'
-                                : 'border-gray-300 dark:border-gray-700 hover:border-primary-400'
-                            }`}
-                            onClick={() => {}}
-                            onDragOver={(e) => { e.preventDefault(); e.currentTarget.classList.add('border-primary-500', 'bg-primary-50', 'dark:bg-primary-900/10'); }}
-                            onDragLeave={(e) => { e.preventDefault(); e.currentTarget.classList.remove('border-primary-500', 'bg-primary-50', 'dark:bg-primary-900/10'); }}
-                            onDrop={(e) => {
-                              e.preventDefault();
-                              e.currentTarget.classList.remove('border-primary-500', 'bg-primary-50', 'dark:bg-primary-900/10');
-                              if (e.dataTransfer.files && e.dataTransfer.files[0]) {
-                                const file = e.dataTransfer.files[0];
-                                const updated = [...formVariants];
-                                updated[index] = { ...updated[index], image_file: file, image_preview: URL.createObjectURL(file) };
-                                setFormVariants(updated);
-                              }
-                            }}
-                            onPaste={(e) => {
-                              const items = e.clipboardData.items;
-                              for (let i = 0; i < items.length; i++) {
-                                if (items[i].type.indexOf("image") !== -1) {
-                                  const file = items[i].getAsFile();
-                                  if (file) {
-                                    const updated = [...formVariants];
-                                    updated[index] = { ...updated[index], image_file: file, image_preview: URL.createObjectURL(file) };
-                                    setFormVariants(updated);
-                                  }
-                                }
-                              }
-                            }}
-                            tabIndex={0}
-                          >
-                             <div className="absolute inset-0 z-10 opacity-0 hover:opacity-100 bg-black/60 transition-all flex flex-col items-center justify-center gap-1">
-                                <button type="button" onClick={() => { setTargetVariantIndex(index); startLiveCamera('environment'); }} className="p-1 text-white hover:text-primary-300">
-                                  <Camera size={16} />
-                                </button>
-                                <button type="button" onClick={() => { setTargetVariantIndex(index); fileInputRef.current?.click(); }} className="p-1 text-white hover:text-primary-300">
-                                  <UploadCloud size={16} />
-                                </button>
+                    className="text-[10px] font-black uppercase tracking-widest text-primary-600 hover:text-primary-700 flex items-center gap-1 group"
+                  >
+                    <Plus size={14} className="group-hover:scale-125 transition-transform" />
+                    Add Variant
+                  </button>
+                </div>
+                <div className="space-y-4">
+                   {formVariants.map((variant, index) => (
+                     <div key={index} className="p-4 bg-gray-50 dark:bg-dark-surfaceAlt rounded-xl border border-gray-100 dark:border-gray-800 space-y-4">
+                       <div className="flex items-center justify-between">
+                         <span className="text-sm font-bold text-gray-400 uppercase tracking-tight">Variation #{index + 1}</span>
+                         <button 
+                           type="button" 
+                           onClick={() => setFormVariants(formVariants.filter((_, i) => i !== index))}
+                           className="p-1.5 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
+                         >
+                           <Trash2 size={16} />
+                         </button>
+                       </div>
+                       
+                       <div className="flex flex-col sm:flex-row gap-4">
+                         {/* Variant Image */}
+                         <div 
+                           className={`w-16 h-16 sm:w-20 sm:h-20 rounded-lg border-2 border-dashed flex flex-col items-center justify-center cursor-pointer overflow-hidden relative shrink-0 transition-all ${
+                             variant.image_preview || variant.image_path
+                               ? 'border-primary-200'
+                               : 'border-gray-300 dark:border-gray-700 hover:border-primary-400'
+                           }`}
+                           onClick={() => {}}
+                           onDragOver={(e) => { e.preventDefault(); e.currentTarget.classList.add('border-primary-500', 'bg-primary-50', 'dark:bg-primary-900/10'); }}
+                           onDragLeave={(e) => { e.preventDefault(); e.currentTarget.classList.remove('border-primary-500', 'bg-primary-50', 'dark:bg-primary-900/10'); }}
+                           onDrop={(e) => {
+                             e.preventDefault();
+                             e.currentTarget.classList.remove('border-primary-500', 'bg-primary-50', 'dark:bg-primary-900/10');
+                             if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+                               const file = e.dataTransfer.files[0];
+                               const updated = [...formVariants];
+                               updated[index] = { ...updated[index], image_file: file, image_preview: URL.createObjectURL(file) };
+                               setFormVariants(updated);
+                             }
+                           }}
+                           onPaste={(e) => {
+                             const items = e.clipboardData.items;
+                             for (let i = 0; i < items.length; i++) {
+                               if (items[i].type.indexOf("image") !== -1) {
+                                 const file = items[i].getAsFile();
+                                 if (file) {
+                                   const updated = [...formVariants];
+                                   updated[index] = { ...updated[index], image_file: file, image_preview: URL.createObjectURL(file) };
+                                   setFormVariants(updated);
+                                 }
+                               }
+                             }
+                           }}
+                           tabIndex={0}
+                         >
+                            <div className="absolute inset-0 z-10 opacity-0 hover:opacity-100 bg-black/60 transition-all flex flex-col items-center justify-center gap-1">
+                               <button type="button" onClick={() => { setTargetVariantIndex(index); startLiveCamera('environment'); }} className="p-1 text-white hover:text-primary-300">
+                                 <Camera size={16} />
+                               </button>
+                               <button type="button" onClick={() => { setTargetVariantIndex(index); fileInputRef.current?.click(); }} className="p-1 text-white hover:text-primary-300">
+                                 <UploadCloud size={16} />
+                               </button>
+                            </div>
+                           {variant.image_preview || (variant.image_path && getImageUrl(variant.image_path)) ? (
+                             <img 
+                               src={variant.image_preview || (variant.image_path ? getImageUrl(variant.image_path) : '')} 
+                               alt="V" 
+                               className="w-full h-full object-cover" 
+                             />
+                           ) : (
+                             <div className="flex flex-col items-center gap-1">
+                               <ImageIcon size={20} className="text-gray-400" />
+                               <span className="text-[8px] text-gray-400 uppercase">Image</span>
                              </div>
-                            {variant.image_preview || (variant.image_path && getImageUrl(variant.image_path)) ? (
-                              <img 
-                                src={variant.image_preview || (variant.image_path ? getImageUrl(variant.image_path) : '')} 
-                                alt="V" 
-                                className="w-full h-full object-cover" 
-                              />
-                            ) : (
-                              <div className="flex flex-col items-center gap-1">
-                                <ImageIcon size={20} className="text-gray-400" />
-                                <span className="text-[8px] text-gray-400 uppercase">Image</span>
-                              </div>
-                            )}
-                          </div>
-                          
-                          <div className="flex-1 grid grid-cols-2 sm:grid-cols-4 gap-3 items-end">
-                            <div className="col-span-2 sm:col-span-1">
-                              <label className="block text-[10px] uppercase font-bold text-gray-400 mb-1">Name</label>
+                           )}
+                         </div>
+                         
+                         <div className="flex-1 grid grid-cols-2 sm:grid-cols-4 gap-3 items-end">
+                           <div className="col-span-2 sm:col-span-1">
+                             <label className="block text-[10px] uppercase font-bold text-gray-400 mb-1">Name</label>
+                             <input
+                               placeholder="e.g. Red, XL"
+                               className="input py-1.5 text-sm"
+                               value={variant.variant_name}
+                               onChange={(e) => handleVariantChange(index, 'variant_name', e.target.value)}
+                               required
+                             />
+                           </div>
+                           <div>
+                              <label className="block text-[10px] uppercase font-bold text-gray-400 mb-1">Price (₱)</label>
                               <input
-                                placeholder="e.g. Red, XL"
+                                type="number"
                                 className="input py-1.5 text-sm"
-                                value={variant.variant_name}
-                                onChange={(e) => handleVariantChange(index, 'variant_name', e.target.value)}
+                                value={variant.price_php}
+                                onChange={(e) => handleVariantChange(index, 'price_php', e.target.value)}
                                 required
                               />
                             </div>
-                            <div>
-                               <label className="block text-[10px] uppercase font-bold text-gray-400 mb-1">Price (₱)</label>
+                           <div>
+                              <label className="block text-[10px] uppercase font-bold text-gray-400 mb-1">Price (¥)</label>
+                              <input
+                                type="number"
+                                className="input py-1.5 text-sm"
+                                value={variant.price_jpy}
+                                onChange={(e) => handleVariantChange(index, 'price_jpy', e.target.value)}
+                              />
+                            </div>
+                           <div className="flex items-center gap-2">
+                             <div className="flex-1">
+                               <label className="block text-[10px] uppercase font-bold text-gray-400 mb-1">Stock</label>
                                <input
                                  type="number"
                                  className="input py-1.5 text-sm"
-                                 value={variant.price_php}
-                                 onChange={(e) => handleVariantChange(index, 'price_php', e.target.value)}
+                                 value={variant.stock}
+                                 onChange={(e) => handleVariantChange(index, 'stock', e.target.value)}
                                  required
                                />
                              </div>
-                            <div>
-                               <label className="block text-[10px] uppercase font-bold text-gray-400 mb-1">Price (¥)</label>
-                               <input
-                                 type="number"
-                                 className="input py-1.5 text-sm"
-                                 value={variant.price_jpy}
-                                 onChange={(e) => handleVariantChange(index, 'price_jpy', e.target.value)}
-                               />
-                             </div>
-                            <div className="flex items-center gap-2">
-                              <div className="flex-1">
-                                <label className="block text-[10px] uppercase font-bold text-gray-400 mb-1">Stock</label>
-                                <input
-                                  type="number"
-                                  className="input py-1.5 text-sm"
-                                  value={variant.stock}
-                                  onChange={(e) => handleVariantChange(index, 'stock', e.target.value)}
-                                  required
-                                />
-                              </div>
-                              <button 
-                                type="button"
-                                onClick={() => setFormVariants(formVariants.filter((_, i) => i !== index))}
-                                className="p-2 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors mb-0.5"
-                                title="Remove Variant"
-                              >
-                                <Trash2 size={16} />
-                              </button>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                    {formVariants.length === 0 && (
-                      <p className="text-center py-4 text-xs text-gray-400 italic">No variations added. Using base price and stock.</p>
-                    )}
-                 </div>
-              </div>
+                             <button 
+                               type="button"
+                               onClick={() => setFormVariants(formVariants.filter((_, i) => i !== index))}
+                               className="p-2 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors mb-0.5"
+                               title="Remove Variant"
+                             >
+                               <Trash2 size={16} />
+                             </button>
+                           </div>
+                         </div>
+                       </div>
+                     </div>
+                   ))}
+                   {formVariants.length === 0 && (
+                     <p className="text-center py-4 text-xs text-gray-400 italic">No variations added. Using base price and stock.</p>
+                   )}
+                </div>
+             </div>
 
               <div className="flex justify-end gap-3 pt-6 border-t dark:border-gray-800 mt-6">
                 <button type="button" onClick={handleCloseModal} className="btn-secondary">Cancel</button>
@@ -1142,268 +1146,192 @@ export const InventoryPage: React.FC = () => {
         </div>
       )}
 
-      {/* Live Camera Viewfinder Modal (Fullscreen) */}
+      {/* Unified Live Camera Modal */}
       {isLiveCameraOpen && (
-        <div className="fixed inset-0 z-[200] flex flex-col bg-black animate-fade-in overflow-hidden">
-          {/* Header Overlay */}
-          <div className="absolute top-0 inset-x-0 p-6 flex justify-between items-center z-30 bg-gradient-to-b from-black/80 via-black/40 to-transparent">
-            <div className="flex items-center gap-3">
-              <div className="bg-primary-500 p-2 rounded-xl text-white shadow-lg shadow-primary-500/30">
-                <Camera size={20} />
-              </div>
-              <div>
-                <h3 className="text-white font-black text-lg tracking-tight">Camera Live</h3>
-                <p className="text-white/60 text-[10px] font-bold uppercase tracking-widest">Capture Mode</p>
-              </div>
-            </div>
-            <button 
-              onClick={stopLiveCamera} 
-              className="p-3 bg-white/10 hover:bg-white/20 text-white rounded-2xl backdrop-blur-xl border border-white/10 transition-all active:scale-95"
-            >
-              <X size={24} />
-            </button>
-          </div>
-
-          {/* Video Viewport (Fullscreen) */}
-          <div className="relative flex-1 bg-black flex items-center justify-center">
-            <video 
-              ref={videoRef} 
-              autoPlay 
-              playsInline 
-              className="w-full h-full object-contain"
-            />
+        <div className="fixed inset-0 z-[100] bg-black flex flex-col items-center justify-center animate-in fade-in duration-300">
+          <div className="relative w-full h-full max-w-lg bg-black overflow-hidden flex flex-col">
             
-            {/* Flash Effect Layer */}
-            {isFlashing && (
-              <div className="absolute inset-0 z-40 bg-white animate-flash pointer-events-none" />
-            )}
-
-            <canvas ref={canvasRef} className="hidden" />
-            
-            {/* Dynamic Guides */}
-            <div className="absolute inset-x-12 top-1/2 -translate-y-1/2 aspect-square border border-white/20 rounded-3xl pointer-events-none flex items-center justify-center">
-               <div className="w-4 h-4 border-t-2 border-l-2 border-white/40 absolute top-0 left-0 rounded-tl-lg" />
-               <div className="w-4 h-4 border-t-2 border-r-2 border-white/40 absolute top-0 right-0 rounded-tr-lg" />
-               <div className="w-4 h-4 border-b-2 border-l-2 border-white/40 absolute bottom-0 left-0 rounded-bl-lg" />
-               <div className="w-4 h-4 border-b-2 border-r-2 border-white/40 absolute bottom-0 right-0 rounded-br-lg" />
-            </div>
-          </div>
-
-          {/* Controls Bar */}
-          <div className="absolute bottom-0 inset-x-0 p-10 flex flex-col items-center gap-8 z-30 bg-gradient-to-t from-black/90 via-black/50 to-transparent">
-            <div className="flex items-center gap-12 sm:gap-20">
-              {/* Flip Camera */}
+            {/* Header Controls */}
+            <div className="absolute top-0 left-0 right-0 p-4 flex justify-between items-center z-30 bg-gradient-to-b from-black/60 to-transparent">
               <button 
-                onClick={flipCamera}
-                className="p-5 bg-white/10 hover:bg-white/20 text-white rounded-3xl backdrop-blur-xl border border-white/10 transition-all active:scale-90"
-                title="Switch Camera"
+                onClick={stopLiveCamera}
+                className="p-2 text-white/90 hover:text-white transition-colors"
               >
-                <RotateCw size={28} />
+                <X className="w-6 h-6" />
               </button>
-
-              {/* Shutter Button */}
-              <button 
-                onClick={capturePhoto}
-                className="relative w-24 h-24 rounded-full border-[6px] border-white flex items-center justify-center group active:scale-90 transition-all"
-              >
-                <div className="w-18 h-18 bg-white rounded-full group-hover:scale-95 transition-transform" />
-                <div className="absolute inset-0 rounded-full animate-ping bg-white/20 pointer-events-none group-active:hidden" />
-              </button>
-
-              <div className="w-18" /> 
-            </div>
-            
-            <p className="text-white/40 text-[10px] font-black uppercase tracking-[0.3em]">Tap to capture product image</p>
-          </div>
-        </div>
-      )}
-
-      {/* Barcode Scanner Modal */}
-      {isBarcodeScannerOpen && (
-        <div className="fixed inset-0 z-[120] flex items-center justify-center backdrop-blur-md bg-black/60 p-4 animate-fade-in">
-          <div className="bg-white dark:bg-dark-surface w-full max-w-md rounded-3xl shadow-2xl overflow-hidden animate-scale-up border border-gray-100 dark:border-gray-800">
-            <div className="flex justify-between items-center p-6 border-b dark:border-gray-800 bg-gray-50/50 dark:bg-dark-surfaceAlt/50">
-              <div className="flex items-center gap-3">
-                <div className="p-2 bg-primary-100 dark:bg-primary-900/30 text-primary-600 rounded-xl">
-                  <ScanBarcode size={20} />
-                </div>
-                <h2 className="text-lg font-black dark:text-white uppercase tracking-tight">Scan Barcode</h2>
-              </div>
-              <button 
-                onClick={() => setIsBarcodeScannerOpen(false)} 
-                className="p-2 text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-full transition-colors"
-              >
-                <X size={20} />
-              </button>
-            </div>
-            
-            <div className="p-6">
-              <div className="relative aspect-[4/3] bg-black rounded-2xl overflow-hidden border-2 border-gray-100 dark:border-gray-800">
-                <div id="barcode-reader" className="w-full h-full"></div>
-                
-                {/* Live Detected Code Chip (iPhone Style) */}
-                {liveDetectedCode && !lookupLoading && (
-                  <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-20 flex flex-col items-center pointer-events-auto">
-                    <button
-                      onClick={() => {
-                        setManualBarcode(liveDetectedCode);
-                        handleBarcodeLookup(liveDetectedCode);
-                        setLiveDetectedCode(null);
-                      }}
-                      className="bg-yellow-400 text-yellow-900 px-6 py-3 rounded-full font-black text-sm shadow-[0_0_50px_rgba(250,204,21,0.5)] flex items-center gap-2 animate-bounce border-2 border-white hover:scale-110 active:scale-95 transition-all"
-                    >
-                      <Barcode className="w-4 h-4" />
-                      {liveDetectedCode}
-                    </button>
-                    <p className="text-white text-[10px] font-black uppercase tracking-tighter text-center mt-2 drop-shadow-lg bg-black/40 px-2 py-0.5 rounded backdrop-blur-sm">
-                      TAP NUMBERS TO SCAN
-                    </p>
-                  </div>
-                )}
-                
-                {lookupLoading && (
-                  <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/80 text-white z-10 gap-3">
-                    <Loader2 className="w-8 h-8 text-primary-500 animate-spin" />
-                    <p className="text-sm font-bold uppercase tracking-widest animate-pulse">Finding Product...</p>
-                  </div>
-                )}
-              </div>
               
-              <div className="mt-6 space-y-4">
-                <div className="bg-primary-50 dark:bg-primary-900/10 p-4 rounded-2xl border border-primary-100 dark:border-primary-900/30">
-                  <p className="text-sm text-primary-600 dark:text-primary-400 text-center font-bold">
-                    {scanTip}
-                  </p>
-                </div>
-
-                <div className="grid grid-cols-2 gap-3">
-                  {hasTorch && (
-                    <button 
-                      onClick={toggleTorch}
-                      className={`py-4 rounded-2xl font-bold flex items-center justify-center gap-2 transition-all uppercase tracking-widest text-[10px] ${
-                        isTorchOn 
-                        ? 'bg-yellow-400 text-yellow-900 shadow-lg shadow-yellow-400/20' 
-                        : 'bg-gray-800 text-gray-200 hover:bg-gray-700'
-                      }`}
-                    >
-                      <Zap className={`w-3.5 h-3.5 ${isTorchOn ? 'fill-current' : ''}`} />
-                      {isTorchOn ? 'Flash Off' : 'Flash On'}
-                    </button>
-                  )}
-                  <button 
-                    onClick={() => setShowManualInput(!showManualInput)}
-                    className="py-4 bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 rounded-2xl font-bold uppercase tracking-widest text-[10px] hover:bg-gray-200 dark:hover:bg-gray-700 transition-all flex items-center justify-center gap-2"
-                  >
-                    <Edit2 className="w-3.5 h-3.5" />
-                    {showManualInput ? 'Hide Input' : 'Type Barcode'}
-                  </button>
-                </div>
-
-                {showManualInput && (
-                  <div className="p-4 bg-white dark:bg-gray-800 rounded-2xl border-2 border-primary-100 dark:border-primary-900/30 space-y-3 animate-in slide-in-from-top-2">
-                    <input 
-                      type="text"
-                      placeholder="Enter Barcode Manually..."
-                      value={manualBarcode}
-                      onChange={(e) => setManualBarcode(e.target.value)}
-                      className="w-full bg-gray-50 dark:bg-gray-900 border-none rounded-xl px-4 py-3 text-sm font-mono focus:ring-2 focus:ring-primary-500"
-                    />
-                    <button 
-                      onClick={() => handleBarcodeLookup(manualBarcode)}
-                      disabled={!manualBarcode || lookupLoading}
-                      className="w-full py-3 bg-primary-500 text-white rounded-xl font-bold text-xs uppercase tracking-widest disabled:opacity-50"
-                    >
-                      {lookupLoading ? 'Looking up...' : 'Search Barcode'}
-                    </button>
-                  </div>
-                )}
-
+              <div className="flex gap-2">
                 <button 
-                  onClick={() => setIsBarcodeScannerOpen(false)}
-                  className="w-full py-4 bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 rounded-2xl font-bold hover:bg-gray-200 dark:hover:bg-gray-700 transition-all uppercase tracking-widest text-xs"
+                  onClick={() => setShowManualInput(true)}
+                  className="p-2 bg-white/10 text-white rounded-full hover:bg-white/20 transition-colors"
+                  title="Manual Input"
                 >
-                  Cancel
+                  <Keyboard className="w-5 h-5" />
+                </button>
+                {hasTorch && (
+                  <button 
+                    onClick={toggleTorch}
+                    className={`p-2 rounded-full transition-all ${isTorchOn ? 'bg-yellow-400 text-black shadow-[0_0_15px_rgba(250,204,21,0.5)]' : 'bg-white/10 text-white'}`}
+                  >
+                    <Zap className={`w-5 h-5 ${isTorchOn ? 'fill-current' : ''}`} />
+                  </button>
+                )}
+                <button 
+                  onClick={flipCamera}
+                  className="p-2 bg-white/10 text-white rounded-full"
+                >
+                  <RefreshCw className="w-5 h-5" />
                 </button>
               </div>
             </div>
+
+            {/* Camera Viewport */}
+            <div className="flex-1 relative bg-zinc-900 overflow-hidden flex items-center justify-center">
+              <div id="live-camera-container" className="w-full h-full [&>video]:object-cover [&>video]:w-full [&>video]:h-full" />
+              
+              {/* Scan Reticle / Guide */}
+              <div className="absolute inset-0 pointer-events-none flex items-center justify-center">
+                <div className="w-[70%] aspect-[1.5/1] border-2 border-white/20 rounded-2xl relative">
+                  <div className="absolute top-0 left-0 w-8 h-8 border-t-2 border-l-2 border-white/60 rounded-tl-xl -translate-x-1 -translate-y-1" />
+                  <div className="absolute top-0 right-0 w-8 h-8 border-t-2 border-r-2 border-white/60 rounded-tr-xl translate-x-1 -translate-y-1" />
+                  <div className="absolute bottom-0 left-0 w-8 h-8 border-b-2 border-l-2 border-white/60 rounded-bl-xl -translate-x-1 translate-y-1" />
+                  <div className="absolute bottom-0 right-0 w-8 h-8 border-b-2 border-r-2 border-white/60 rounded-br-xl translate-x-1 translate-y-1" />
+                </div>
+              </div>
+
+              {/* Live Barcode Discovery Chip */}
+              {liveDetectedCode && (
+                <div className="absolute bottom-40 left-0 right-0 flex justify-center z-20 animate-in slide-in-from-bottom-4 fade-in duration-300">
+                  <button
+                    onClick={() => {
+                      setFormBarcode(liveDetectedCode);
+                      handleBarcodeLookup(liveDetectedCode);
+                      if (navigator.vibrate) navigator.vibrate([10, 30, 10]);
+                      stopLiveCamera();
+                    }}
+                    onContextMenu={(e) => {
+                      e.preventDefault();
+                      navigator.clipboard.writeText(liveDetectedCode);
+                      setScanTip("📋 Copied to clipboard!");
+                      if (navigator.vibrate) navigator.vibrate(100);
+                      setTimeout(() => setScanTip("💡 TIP: Tap screen to focus!"), 2000);
+                    }}
+                    className="flex items-center gap-2 bg-yellow-400 text-black px-6 py-3 rounded-full font-bold shadow-[0_8px_32px_rgba(0,0,0,0.3),0_0_20px_rgba(250,204,21,0.4)] hover:bg-yellow-300 active:scale-95 transition-all group select-none"
+                    title="Tap to use, Long Press to Copy"
+                  >
+                    <div className="relative">
+                      <Barcode className="w-5 h-5" />
+                      <div className="absolute -top-1 -right-1 w-2 h-2 bg-red-500 rounded-full animate-ping" />
+                    </div>
+                    <span className="tracking-wider font-mono">{liveDetectedCode}</span>
+                    <Search className="w-4 h-4 ml-1 opacity-60 group-hover:opacity-100 transition-opacity" />
+                  </button>
+                </div>
+              )}
+
+              {/* Shutter Button (Taking Photo) */}
+              <div className="absolute bottom-0 left-0 right-0 p-8 flex flex-col items-center gap-6 bg-gradient-to-t from-black/80 to-transparent z-10">
+                <p className="text-white/60 text-xs font-medium uppercase tracking-[0.2em]">{scanTip}</p>
+                
+                <button
+                  onClick={capturePhoto}
+                  className="relative group focus:outline-none"
+                >
+                  <div className="w-20 h-20 rounded-full border-4 border-white/30 flex items-center justify-center p-1 group-active:scale-90 transition-transform">
+                    <div className="w-full h-full rounded-full bg-white shadow-[0_0_20px_rgba(255,255,255,0.3)]" />
+                  </div>
+                </button>
+              </div>
+
+              {/* Flash effect overlay */}
+              {isFlashing && (
+                <div className="absolute inset-0 bg-white z-[60] animate-out fade-out duration-300" />
+              )}
+
+              {/* Manual Input Overlay */}
+              {showManualInput && (
+                <div className="absolute inset-0 z-[70] bg-black/90 backdrop-blur-sm flex items-center justify-center p-6 animate-in zoom-in-95 duration-200">
+                  <div className="w-full max-w-sm bg-white dark:bg-zinc-900 rounded-3xl p-6 shadow-2xl">
+                    <h3 className="text-lg font-bold mb-4 dark:text-white">Manual Barcode</h3>
+                    <input 
+                      autoFocus
+                      type="text" 
+                      className="input mb-4" 
+                      placeholder="Enter Barcode Number..."
+                      value={manualBarcode}
+                      onChange={(e) => setManualBarcode(e.target.value)}
+                    />
+                    <div className="flex gap-3">
+                      <button 
+                        onClick={() => setShowManualInput(false)}
+                        className="btn-secondary flex-1"
+                      >
+                        Cancel
+                      </button>
+                      <button 
+                        onClick={() => {
+                          if (manualBarcode.trim()) {
+                            setFormBarcode(manualBarcode.trim());
+                            handleBarcodeLookup(manualBarcode.trim());
+                            setShowManualInput(false);
+                            stopLiveCamera();
+                          }
+                        }}
+                        className="btn-primary flex-1"
+                        disabled={!manualBarcode.trim()}
+                      >
+                        Done
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <canvas ref={canvasRef} className="hidden" />
           </div>
         </div>
       )}
 
       {/* Category Manager Modal */}
       {isCategoryManagerOpen && (
-        <div className="fixed inset-0 z-[110] flex items-center justify-center backdrop-blur-md bg-black/40 p-4 animate-fade-in">
-          <div className="bg-white dark:bg-dark-surface w-full max-w-md rounded-3xl shadow-2xl overflow-hidden animate-scale-up border border-gray-100 dark:border-gray-800">
-            <div className="flex justify-between items-center p-6 border-b dark:border-gray-800 bg-gray-50/50 dark:bg-dark-surfaceAlt/50">
-              <h2 className="text-lg font-black dark:text-white uppercase tracking-tight">Manage Categories</h2>
-              <button 
-                onClick={() => { setIsCategoryManagerOpen(false); setEditingCategoryId(null); }} 
-                className="p-2 text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-full transition-colors"
-              >
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-300">
+          <div className="bg-white dark:bg-dark-surface w-full max-w-md rounded-[2rem] shadow-2xl overflow-hidden border border-white/10">
+            <div className="p-6 border-b dark:border-gray-800 flex items-center justify-between">
+              <h2 className="text-xl font-black text-gray-900 dark:text-white">Manage Categories</h2>
+              <button onClick={() => setIsCategoryManagerOpen(false)} className="p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-full">
                 <X size={20} />
               </button>
             </div>
             
-            <div className="p-6 max-h-[60vh] overflow-y-auto space-y-3">
-              {categories.map((cat) => (
-                <div key={cat.id} className="flex items-center gap-3 bg-gray-50 dark:bg-dark-surfaceAlt p-3 rounded-2xl border border-gray-100 dark:border-gray-800 group">
-                  {editingCategoryId === cat.id ? (
-                    <div className="flex-1 flex gap-2">
-                      <input 
-                        type="text" 
-                        value={editCategoryName} 
-                        onChange={e => setEditCategoryName(e.target.value)}
-                        className="input h-9 text-sm"
-                        autoFocus
-                      />
-                      <button onClick={() => handleUpdateCategory(cat.id)} className="p-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-all shadow-md shadow-green-500/20">
-                        <Check size={16} />
-                      </button>
-                      <button onClick={() => setEditingCategoryId(null)} className="p-2 bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-300 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-600 transition-all">
-                        <X size={16} />
-                      </button>
-                    </div>
-                  ) : (
-                    <>
-                      <div className="flex-1 min-w-0">
-                        <p className="font-bold text-sm dark:text-white truncate">{cat.name}</p>
+            <div className="p-6 max-h-[60vh] overflow-y-auto scrollbar-thin">
+              <div className="space-y-3">
+                {categories.map(cat => (
+                  <div key={cat.id} className="flex items-center justify-between p-3 bg-gray-50 dark:bg-dark-surfaceAlt rounded-xl border dark:border-gray-800">
+                    {editingCategoryId === cat.id ? (
+                      <div className="flex gap-2 flex-1">
+                        <input 
+                          type="text" 
+                          value={editCategoryName} 
+                          onChange={e => setEditCategoryName(e.target.value)}
+                          className="input py-1.5 flex-1 text-sm"
+                          autoFocus
+                        />
+                        <button onClick={() => handleUpdateCategory(cat.id)} className="p-1.5 bg-green-500 text-white rounded-lg"><Check size={16} /></button>
+                        <button onClick={() => setEditingCategoryId(null)} className="p-1.5 bg-gray-200 text-gray-600 rounded-lg"><X size={16} /></button>
                       </div>
-                      <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                        <button 
-                          onClick={() => handleEditCategory(cat.id, cat.name)} 
-                          className="p-2 text-gray-400 hover:text-primary-500 hover:bg-primary-50 dark:hover:bg-primary-900/20 rounded-lg transition-all"
-                          title="Rename"
-                        >
-                          <Edit2 size={14} />
-                        </button>
-                        <button 
-                          onClick={() => handleDeleteCategory(cat.id)} 
-                          className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-all"
-                          title="Delete"
-                        >
-                          <Trash2 size={14} />
-                        </button>
-                      </div>
-                    </>
-                  )}
-                </div>
-              ))}
-              
-              {categories.length === 0 && (
-                <div className="text-center py-8 text-gray-400 italic text-sm">
-                  No categories found.
-                </div>
-              )}
-            </div>
-
-            <div className="p-6 bg-gray-50/50 dark:bg-dark-surfaceAlt/50 border-t dark:border-gray-800">
-               <button 
-                 onClick={() => { setIsCategoryManagerOpen(false); setIsNewCategory(true); }}
-                 className="w-full btn-primary py-3 rounded-2xl flex items-center justify-center gap-2 shadow-lg shadow-primary-500/20"
-               >
-                 <Plus size={18} />
-                 Add New From Form
-               </button>
+                    ) : (
+                      <>
+                        <span className="font-bold text-gray-700 dark:text-gray-300">{cat.name}</span>
+                        <div className="flex gap-1">
+                          <button onClick={() => handleEditCategory(cat.id, cat.name)} className="p-2 text-gray-400 hover:text-primary-500"><Edit2 size={16} /></button>
+                          <button onClick={() => handleDeleteCategory(cat.id)} className="p-2 text-gray-400 hover:text-red-500"><Trash2 size={16} /></button>
+                        </div>
+                      </>
+                    )}
+                  </div>
+                ))}
+              </div>
             </div>
           </div>
         </div>

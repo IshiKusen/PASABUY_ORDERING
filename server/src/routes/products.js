@@ -85,29 +85,74 @@ router.get('/', async (req, res) => {
 });
 
 
-// GET /api/products/lookup/:barcode - Lookup product info by barcode (admin only)
-router.get('/lookup/:barcode', authenticate, requireAdmin, async (req, res) => {
-  try {
-    const { barcode } = req.params;
-    
-    // UPCitemdb Trial API - Supports up to 100 requests per day without a dedicated key
-    // For production scaling, a key can be added to the headers
-    const response = await fetch(`https://api.upcitemdb.com/prod/trial/lookup?upc=${barcode}`);
-    const data = await response.json();
+const { identifyProductFromBarcode } = require('../services/gemini');
 
-    if (data.code === 'OK' && data.items && data.items.length > 0) {
-      const item = data.items[0];
-      return res.json({
-        name: item.title,
-        brand: item.brand,
-        image: item.images && item.images.length > 0 ? item.images[0] : null
+// GET /api/products/lookup/:barcode - Tiered Product Lookup
+router.get('/lookup/:barcode', authenticate, requireAdmin, async (req, res) => {
+  const { barcode } = req.params;
+  
+  try {
+    // TIER 1: UPCitemdb (General)
+    try {
+      const upcRes = await fetch(`https://api.upcitemdb.com/prod/trial/lookup?upc=${barcode}`);
+      const upcData = await upcRes.json();
+      if (upcData.code === 'OK' && upcData.items?.length > 0) {
+        const item = upcData.items[0];
+        return res.json({ 
+          name: item.title, 
+          brand: item.brand, 
+          image: item.images?.[0] || null, 
+          source: 'upcitemdb' 
+        });
+      }
+    } catch (e) { console.warn('UPCitemdb failed:', e.message); }
+
+    // TIER 2: Open Food Facts (Best for Japanese Snacks & Food - FREE)
+    try {
+      const offRes = await fetch(`https://world.openfoodfacts.org/api/v0/product/${barcode}.json`);
+      const offData = await offRes.json();
+      if (offData.status === 1 && offData.product) {
+        return res.json({
+          name: offData.product.product_name || offData.product.generic_name,
+          brand: offData.product.brands,
+          image: offData.product.image_url || null,
+          source: 'openfoodfacts'
+        });
+      }
+    } catch (e) { console.warn('OpenFoodFacts failed:', e.message); }
+
+    // TIER 3: Go-UPC (Requires Key)
+    if (process.env.GO_UPC_API_KEY) {
+      try {
+        const goRes = await fetch(`https://go-upc.com/api/v1/code/${barcode}`, {
+          headers: { 'Authorization': `Bearer ${process.env.GO_UPC_API_KEY}` }
+        });
+        const goData = await goRes.json();
+        if (goData.product) {
+          return res.json({ 
+            name: goData.product.name, 
+            brand: goData.product.brand, 
+            image: goData.product.imageUrl || null, 
+            source: 'go-upc' 
+          });
+        }
+      } catch (e) { console.warn('Go-UPC failed:', e.message); }
+    }
+
+    // TIER 4: Gemini AI (Smart Fallback)
+    const aiData = await identifyProductFromBarcode(barcode);
+    if (aiData && aiData.name) {
+      return res.json({ 
+        ...aiData, 
+        source: 'gemini-ai', 
+        image: null 
       });
     }
 
-    res.status(404).json({ error: 'Product not found. You may need to enter details manually.' });
+    res.status(404).json({ error: 'Product not found in any database.' });
   } catch (err) {
-    console.error('Barcode lookup error:', err);
-    res.status(500).json({ error: 'Failed to connect to the lookup service.' });
+    console.error('Lookup system error:', err);
+    res.status(500).json({ error: 'Search failed. Please enter manually.' });
   }
 });
 

@@ -86,4 +86,33 @@ IMPORTANT:
   }
 };
 
-module.exports = { generateBotReply };
+/**
+ * Uses Gemini to identify a product name/brand from a barcode number
+ * by searching its internal knowledge.
+ */
+const identifyProductFromBarcode = async (barcode) => {
+  try {
+    const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
+    const prompt = `Identify the product with barcode: ${barcode}. 
+    Respond ONLY with a JSON object containing:
+    { "name": "Product Name", "brand": "Brand Name" }
+    If you don't know, respond with { "name": null, "brand": null }.
+    Focus on Japanese products if possible. Keep names short and descriptive.`;
+
+    const result = await model.generateContent(prompt);
+    const response = await result.response;
+    const text = response.text().trim();
+    
+    // Extract JSON from markdown if needed
+    const jsonStr = text.match(/\{.*\}/s)?.[0];
+    if (jsonStr) {
+      return JSON.parse(jsonStr);
+    }
+    return null;
+  } catch (err) {
+    console.error('Gemini Product Identification Error:', err);
+    return null;
+  }
+};
+
+module.exports = { generateBotReply, identifyProductFromBarcode };

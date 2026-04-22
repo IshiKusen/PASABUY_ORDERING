@@ -176,9 +176,10 @@ export const InventoryPage: React.FC = () => {
 
   const barcodeScannerRef = useRef<Html5Qrcode | null>(null);
 
+  const [scanTip, setScanTip] = useState("");
+
   // Barcode Scanner Lifecycle
   useEffect(() => {
-    // Cleanup any existing camera streams from "Take Photo" feature
     const cleanupAllCameras = () => {
       if (cameraStream) {
         cameraStream.getTracks().forEach(track => track.stop());
@@ -188,38 +189,55 @@ export const InventoryPage: React.FC = () => {
     };
 
     if (isBarcodeScannerOpen) {
-      cleanupAllCameras(); // KILL any other camera usage first
+      cleanupAllCameras();
+      setScanTip("Align barcode in the center box...");
       
       const timer = setTimeout(() => {
         const scanner = new Html5Qrcode("barcode-reader");
         barcodeScannerRef.current = scanner;
         
         const config = { 
-          fps: 20, 
-          qrbox: { width: 280, height: 180 },
+          fps: 30, // Maximum speed
+          qrbox: { width: 300, height: 200 }, // Better for EAN-13
           aspectRatio: 1.0,
           experimentalFeatures: { useBarCodeDetectorIfSupported: true }
         };
         
-        // Use basic constraints first to ensure visibility
+        // Show tips if taking too long
+        const tipTimer = setTimeout(() => setScanTip("Try moving slightly away or check lighting..."), 5000);
+        const tipTimer2 = setTimeout(() => setScanTip("Ensure barcode is flat and centered!"), 10000);
+        
         scanner.start(
-          { facingMode: "environment" }, 
+          { 
+            facingMode: "environment",
+            width: { ideal: 1920 }, // High-Res for sharp lines
+            height: { ideal: 1080 }
+          }, 
           config,
           (decodedText) => {
+            // Success - Vibrate for feedback
+            if (navigator.vibrate) navigator.vibrate(100);
+            
             handleBarcodeLookup(decodedText);
-            scanner.stop().catch(e => console.error("Stop error:", e));
+            scanner.stop().catch(e => console.error(e));
           },
-          () => {} // silent parse error
+          () => {} 
         ).catch(err => {
           console.error("Scanner start error:", err);
+          // Simple fallback
+          scanner.start({ facingMode: "environment" }, config, (text) => {
+            if (navigator.vibrate) navigator.vibrate(100);
+            handleBarcodeLookup(text);
+            scanner.stop().catch(e => console.error(e));
+          }, () => {});
         });
-      }, 500); // Wait a bit longer for DOM and cleanup
+      }, 500);
       
       return () => {
         clearTimeout(timer);
         if (barcodeScannerRef.current) {
           if (barcodeScannerRef.current.isScanning) {
-            barcodeScannerRef.current.stop().catch(e => console.error("Cleanup stop error:", e));
+            barcodeScannerRef.current.stop().catch(e => console.error(e));
           }
           barcodeScannerRef.current = null;
         }
@@ -1145,9 +1163,11 @@ export const InventoryPage: React.FC = () => {
               </div>
               
               <div className="mt-6 space-y-4">
-                <p className="text-sm text-gray-500 dark:text-gray-400 text-center leading-relaxed">
-                  Center the product's barcode within the box to scan. Details will be auto-filled.
-                </p>
+                <div className="bg-primary-50 dark:bg-primary-900/10 p-4 rounded-2xl border border-primary-100 dark:border-primary-900/30">
+                  <p className="text-sm text-primary-600 dark:text-primary-400 text-center font-bold animate-pulse">
+                    {scanTip}
+                  </p>
+                </div>
                 <button 
                   onClick={() => setIsBarcodeScannerOpen(false)}
                   className="w-full py-4 bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 rounded-2xl font-bold hover:bg-gray-200 dark:hover:bg-gray-700 transition-all uppercase tracking-widest text-xs"

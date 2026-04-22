@@ -21,6 +21,7 @@ import {
 import { Html5Qrcode, Html5QrcodeSupportedFormats } from 'html5-qrcode';
 import { productsApi, categoriesApi } from '../../utils/api';
 import { getImageUrl } from '../../utils/image';
+import BarcodeGenerator from '../../components/common/BarcodeGenerator';
 
 
 interface Variant {
@@ -616,12 +617,24 @@ export const InventoryPage: React.FC = () => {
       formData.append('price_jpy', formPriceJpy);
       formData.append('category_id', categoryId);
       formData.append('stock', formStock);
-      formData.append('barcode', formBarcode);
       
       if (formImageFile) {
         formData.append('image', formImageFile);
-      } else if (editingProduct && formImagePreview) {
-        formData.append('image_path', editingProduct.image_path);
+      } else if (formImagePreview) {
+        // Handle cases where we have a preview but no file (e.g. from lookup or existing)
+        if (!editingProduct) {
+          // New product created with image from barcode lookup
+          formData.append('image_path', formImagePreview);
+        } else {
+          // Existing product: check if preview matches current path or is a new lookup URL
+          const originalResolvedUrl = editingProduct.image_path ? getImageUrl(editingProduct.image_path) : null;
+          if (formImagePreview === originalResolvedUrl) {
+            formData.append('image_path', editingProduct.image_path);
+          } else {
+            // Preview changed (e.g. from lookup during edit)
+            formData.append('image_path', formImagePreview);
+          }
+        }
       }
 
       // Add variants with their images
@@ -749,6 +762,7 @@ export const InventoryPage: React.FC = () => {
               <thead>
                 <tr className="bg-gray-50 dark:bg-dark-surfaceAlt border-b dark:border-gray-800">
                   <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-gray-400">Product Info</th>
+                  <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-gray-400">Barcode</th>
                   <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-gray-400">Category</th>
                   <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-gray-400">Price (PHP)</th>
                   <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-gray-400">Stock</th>
@@ -775,6 +789,24 @@ export const InventoryPage: React.FC = () => {
                           <p className="text-xs text-gray-400 font-medium">{product.description || 'No brand specified'}</p>
                         </div>
                       </div>
+                    </td>
+                    <td className="px-6 py-4">
+                      {product.barcode ? (
+                        <div className="flex flex-col items-center justify-center gap-1 bg-white/50 dark:bg-black/20 p-2 rounded-lg border border-gray-100 dark:border-gray-800/50">
+                          <BarcodeGenerator 
+                            value={product.barcode} 
+                            width={1.2} 
+                            height={25} 
+                            className="max-w-[120px]" 
+                          />
+                          <span className="text-[8px] font-mono font-bold text-gray-400 tracking-wider">{product.barcode}</span>
+                        </div>
+                      ) : (
+                        <div className="flex flex-col items-center justify-center opacity-20">
+                          <Barcode size={20} className="text-gray-400" />
+                          <span className="text-[8px] font-bold uppercase tracking-tighter text-gray-400">N/A</span>
+                        </div>
+                      )}
                     </td>
                     <td className="px-6 py-4">
                       <span className="px-2.5 py-1 rounded-lg bg-gray-100 dark:bg-dark-surfaceAlt text-gray-600 dark:text-gray-400 text-[10px] font-bold uppercase border border-gray-200/50 dark:border-gray-700/50">
@@ -965,6 +997,19 @@ export const InventoryPage: React.FC = () => {
                       Lookup
                     </button>
                   </div>
+                  {formBarcode && (
+                    <div className="mt-3 p-4 bg-gray-50 dark:bg-dark-surfaceAlt rounded-2xl border border-gray-100 dark:border-gray-800 flex items-center justify-center">
+                      <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100">
+                        <BarcodeGenerator 
+                          value={formBarcode} 
+                          width={2} 
+                          height={50} 
+                          displayValue={true}
+                          className="max-w-full"
+                        />
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 <div className="md:col-span-2">

@@ -39,6 +39,38 @@ const uploadToSupabase = async (file) => {
   return publicUrl;
 };
 
+/**
+ * Syncs an external image URL to Supabase storage if it's not already hosted there.
+ */
+const syncExternalImage = async (url) => {
+  if (!url || !url.startsWith('http')) return url;
+  
+  // Skip if already in our Supabase storage
+  if (url.includes('supabase.co') && url.includes('/storage/v1/object/public/products/')) {
+    return url;
+  }
+
+  try {
+    const response = await fetch(url);
+    if (!response.ok) return url;
+
+    const buffer = Buffer.from(await response.arrayBuffer());
+    const mimetype = response.headers.get('content-type') || 'image/jpeg';
+    const extension = mimetype.split('/')[1]?.split('+')[0] || 'jpg';
+    
+    const mockFile = {
+      originalname: `synced_${Date.now()}.${extension}`,
+      buffer: buffer,
+      mimetype: mimetype
+    };
+
+    return await uploadToSupabase(mockFile);
+  } catch (err) {
+    console.warn('Failed to sync external image:', url, err.message);
+    return url; // Fallback to original URL
+  }
+};
+
 // GET /api/products - List all active products (public)
 router.get('/', async (req, res) => {
   try {
@@ -199,6 +231,9 @@ router.post('/', authenticate, requireAdmin, upload.any(), async (req, res) => {
     const baseFile = req.files.find(f => f.fieldname === 'image');
     if (baseFile) {
       image_path = await uploadToSupabase(baseFile);
+    } else if (image_path && image_path.startsWith('http')) {
+      // Sync external image from barcode lookup or paste
+      image_path = await syncExternalImage(image_path);
     }
 
     const { data: product, error } = await supabase
@@ -229,6 +264,8 @@ router.post('/', authenticate, requireAdmin, upload.any(), async (req, res) => {
         const variantFile = req.files.find(f => f.fieldname === `variant_image_${i}`);
         if (variantFile) {
           vImagePath = await uploadToSupabase(variantFile);
+        } else if (vImagePath && vImagePath.startsWith('http')) {
+          vImagePath = await syncExternalImage(vImagePath);
         }
 
         variantsToInsert.push({
@@ -265,6 +302,8 @@ router.patch('/:id', authenticate, requireAdmin, upload.any(), async (req, res) 
     const baseFile = req.files.find(f => f.fieldname === 'image');
     if (baseFile) {
       image_path = await uploadToSupabase(baseFile);
+    } else if (image_path && image_path.startsWith('http')) {
+      image_path = await syncExternalImage(image_path);
     }
 
     const { data: product, error } = await supabase
@@ -308,6 +347,8 @@ router.patch('/:id', authenticate, requireAdmin, upload.any(), async (req, res) 
         const variantFile = req.files.find(f => f.fieldname === `variant_image_${i}`);
         if (variantFile) {
           vImagePath = await uploadToSupabase(variantFile);
+        } else if (vImagePath && vImagePath.startsWith('http')) {
+          vImagePath = await syncExternalImage(vImagePath);
         }
 
         const variantObj = {

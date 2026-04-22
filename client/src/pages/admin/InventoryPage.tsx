@@ -183,10 +183,23 @@ export const InventoryPage: React.FC = () => {
       const timer = setTimeout(() => {
         html5QrCode = new Html5Qrcode("barcode-reader");
         
-        const config = { fps: 10, qrbox: { width: 250, height: 150 } };
+        // HIGHER QUALITY SETTINGS
+        const config = { 
+          fps: 20, // Faster scanning
+          qrbox: { width: 280, height: 180 }, // Slightly larger box
+          aspectRatio: 1.0,
+          experimentalFeatures: {
+            useBarCodeDetectorIfSupported: true // Use native phone hardware if available
+          }
+        };
         
         html5QrCode.start(
-          { facingMode: "environment" }, 
+          { 
+            facingMode: "environment",
+            // Request High Resolution
+            width: { min: 640, ideal: 1280, max: 1920 },
+            height: { min: 480, ideal: 720, max: 1080 }
+          }, 
           config,
           (decodedText) => {
             // Success

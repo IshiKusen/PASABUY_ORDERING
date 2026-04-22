@@ -394,8 +394,11 @@ export const InventoryPage: React.FC = () => {
       barcodeScannerRef.current = scanner;
 
       const config = { 
-        fps: 30, 
-        qrbox: { width: 280, height: 160 },
+        fps: 15, 
+        qrbox: (viewfinderWidth: number, viewfinderHeight: number) => {
+          const minEdge = Math.min(viewfinderWidth, viewfinderHeight);
+          return { width: Math.floor(minEdge * 0.8), height: Math.floor(minEdge * 0.5) };
+        },
         aspectRatio: 1.777778, 
         disableFlip: mode === 'environment'
       };
@@ -1232,7 +1235,7 @@ export const InventoryPage: React.FC = () => {
 
             {/* Camera Viewport */}
             <div className="flex-1 relative bg-zinc-900 overflow-hidden flex items-center justify-center">
-              <div id="live-camera-container" className="w-full h-full [&>video]:object-cover [&>video]:w-full [&>video]:h-full" />
+              <div id="live-camera-container" className="w-full h-full" />
               
               {/* Scan Reticle / Guide */}
               <div className="absolute inset-0 pointer-events-none flex items-center justify-center">

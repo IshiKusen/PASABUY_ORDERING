@@ -15,9 +15,10 @@ import {
   Check, 
   Settings, 
   ScanBarcode, 
-  Zap 
+  Zap,
+  Barcode
 } from 'lucide-react';
-import { Html5Qrcode } from 'html5-qrcode';
+import { Html5Qrcode, Html5QrcodeSupportedFormats } from 'html5-qrcode';
 import { productsApi, categoriesApi } from '../../utils/api';
 
 const API_HOST = import.meta.env.VITE_API_URL || 'http://localhost:5000';
@@ -241,7 +242,14 @@ export const InventoryPage: React.FC = () => {
       const timer = setTimeout(() => {
         // Universal Mode: Supports ALL barcode and QR formats
         const scanner = new Html5Qrcode("barcode-reader", {
-          verbose: false
+          formatsToSupport: [
+            Html5QrcodeSupportedFormats.EAN_13,
+            Html5QrcodeSupportedFormats.EAN_8,
+            Html5QrcodeSupportedFormats.UPC_A,
+            Html5QrcodeSupportedFormats.UPC_E,
+            Html5QrcodeSupportedFormats.CODE_128,
+            Html5QrcodeSupportedFormats.QR_CODE
+          ]
         });
         barcodeScannerRef.current = scanner;        const config = { 
           fps: 60, 

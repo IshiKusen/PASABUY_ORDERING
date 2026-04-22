@@ -249,7 +249,8 @@ export const InventoryPage: React.FC = () => {
             Html5QrcodeSupportedFormats.UPC_E,
             Html5QrcodeSupportedFormats.CODE_128,
             Html5QrcodeSupportedFormats.QR_CODE
-          ]
+          ],
+          verbose: false
         });
         barcodeScannerRef.current = scanner;        const config = { 
           fps: 60, 

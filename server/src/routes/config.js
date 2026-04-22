@@ -47,6 +47,7 @@ router.put('/', authenticate, requireAdmin, async (req, res) => {
 
     res.json({ message: 'Settings updated.' });
   } catch (err) {
+    console.error('SERVER CONFIG UPDATE ERROR:', err);
     res.status(500).json({ error: 'Failed' });
   }
 });

@@ -95,8 +95,8 @@ export const DashboardPage: React.FC = () => {
               <Calendar size={20} className="text-primary-500 shrink-0" />
               Active System Configuration
             </h3>
-            <span className={`px-3 py-1 rounded-full text-xs font-bold uppercase ${systemConfig.is_ordering_open ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
-              {systemConfig.is_ordering_open ? 'Ordering Open' : 'Closed'}
+            <span className={`px-3 py-1 rounded-full text-xs font-bold uppercase ${systemConfig.is_ordering_open === '1' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+              {systemConfig.is_ordering_open === '1' ? 'Ordering Open' : 'Closed'}
             </span>
           </div>
 

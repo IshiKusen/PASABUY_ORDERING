@@ -589,14 +589,14 @@ export const InventoryPage: React.FC = () => {
 
     // Auto-conversion for variant prices
     if (field === 'price_php') {
-      if (value && !isNaN(Number(value))) {
-        updated[index].price_jpy = (Number(value) / JPY_TO_PHP_RATE).toFixed(0);
+      if (value && !isNaN(Number(value)) && jpyToPhpRate > 0) {
+        updated[index].price_jpy = (Number(value) / jpyToPhpRate).toFixed(0);
       } else {
         updated[index].price_jpy = "";
       }
     } else if (field === 'price_jpy') {
-      if (value && !isNaN(Number(value))) {
-        updated[index].price_php = (Number(value) * JPY_TO_PHP_RATE).toFixed(2);
+      if (value && !isNaN(Number(value)) && jpyToPhpRate > 0) {
+        updated[index].price_php = (Number(value) * jpyToPhpRate).toFixed(2);
       } else {
         updated[index].price_php = "";
       }

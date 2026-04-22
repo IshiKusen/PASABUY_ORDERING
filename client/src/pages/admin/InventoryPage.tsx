@@ -17,7 +17,7 @@ import {
   ScanBarcode, 
   Zap 
 } from 'lucide-react';
-import { Html5Qrcode, Html5QrcodeSupportedFormats } from 'html5-qrcode';
+import { Html5Qrcode } from 'html5-qrcode';
 import { productsApi, categoriesApi } from '../../utils/api';
 
 const API_HOST = import.meta.env.VITE_API_URL || 'http://localhost:5000';

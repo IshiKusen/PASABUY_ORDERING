@@ -402,18 +402,29 @@ export const InventoryPage: React.FC = () => {
           Html5QrcodeSupportedFormats.CODE_128,
           Html5QrcodeSupportedFormats.QR_CODE
         ],
-        verbose: false
+        verbose: false,
+        // Use native barcode detector if available (experimental but very powerful)
+        experimentalFeatures: {
+          useBarCodeDetectorIfSupported: true
+        }
       });
       barcodeScannerRef.current = scanner;
 
       const config = { 
-        fps: 15, 
+        fps: 20, // Increased FPS for faster discovery
         qrbox: (viewfinderWidth: number, viewfinderHeight: number) => {
           const minEdge = Math.min(viewfinderWidth, viewfinderHeight);
-          return { width: Math.floor(minEdge * 0.8), height: Math.floor(minEdge * 0.5) };
+          // Slightly taller box to capture tilted barcodes better
+          return { width: Math.floor(minEdge * 0.85), height: Math.floor(minEdge * 0.55) };
         },
         aspectRatio: 1.777778, 
-        disableFlip: mode === 'environment'
+        disableFlip: mode === 'environment',
+        // Request higher resolution for sharper barcode lines
+        videoConstraints: {
+          facingMode: mode,
+          width: { min: 640, ideal: 1280, max: 1920 },
+          height: { min: 480, ideal: 720, max: 1080 }
+        }
       };
 
       // 4. Start using the specific Device ID for better reliability

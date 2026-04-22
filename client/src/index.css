@@ -114,13 +114,35 @@
   box-shadow: 0 0 25px rgba(236, 72, 153, 0.5);
 }
 
-@keyframes scan-line {
-  0% { transform: translateY(-50px); opacity: 0; }
-  10% { opacity: 1; }
-  90% { opacity: 1; }
-  100% { transform: translateY(50px); opacity: 0; }
+/* Barcode Scanner Overrides */
+#barcode-reader {
+  border: none !important;
+  background: black;
+  border-radius: 1.5rem;
+  overflow: hidden;
 }
 
-.animate-scan-line {
-  animation: scan-line 2s linear infinite;
+#barcode-reader__scan_region {
+  background: transparent !important;
+}
+
+#barcode-reader__scan_region > canvas {
+  display: none !important; /* Hide the shading canvas */
+}
+
+#barcode-reader video {
+  object-fit: cover !important;
+  border-radius: 1.5rem;
+}
+
+.scan-line {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 2px;
+  background: #f472b6;
+  box-shadow: 0 0 15px #f472b6;
+  animation: scan 2s linear infinite;
+  z-index: 10;
 }

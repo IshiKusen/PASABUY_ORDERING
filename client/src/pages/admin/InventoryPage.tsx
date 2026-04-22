@@ -196,6 +196,8 @@ export const InventoryPage: React.FC = () => {
   const [scanTip, setScanTip] = useState("");
   const [isTorchOn, setIsTorchOn] = useState(false);
   const [hasTorch, setHasTorch] = useState(false);
+  const [manualBarcode, setManualBarcode] = useState("");
+  const [showManualInput, setShowManualInput] = useState(false);
 
   // Barcode Scanner Lifecycle
   useEffect(() => {
@@ -209,8 +211,9 @@ export const InventoryPage: React.FC = () => {
 
     if (isBarcodeScannerOpen) {
       cleanupAllCameras();
-      setScanTip("Move phone back (5-8 inches) for sharp focus...");
+      setScanTip("Searching for barcode...");
       setIsTorchOn(false);
+      setHasTorch(false);
       
       let t1: any;
       let t2: any;
@@ -219,18 +222,28 @@ export const InventoryPage: React.FC = () => {
         const scanner = new Html5Qrcode("barcode-reader");
         barcodeScannerRef.current = scanner;
         
+        // Configuration for "Entire Frame" HD scanning
         const config = { 
           fps: 30,
-          qrbox: { width: 320, height: 220 }, // Slightly larger box
+          qrbox: (viewWidth: number, viewHeight: number) => {
+            // Full width, but keep it clear
+            return { width: viewWidth * 0.8, height: viewHeight * 0.4 };
+          },
           aspectRatio: 1.0,
           experimentalFeatures: { useBarCodeDetectorIfSupported: true }
         };
         
-        t1 = setTimeout(() => setScanTip("Still blurry? Move slightly further away..."), 5000);
-        t2 = setTimeout(() => setScanTip("Try turning on the Flashlight below! 🔦"), 10000);
+        t1 = setTimeout(() => setScanTip("💡 TIP: Move phone 5-8 inches away until lines are sharp!"), 4000);
+        t2 = setTimeout(() => setScanTip("🔦 Use the 'FLASH' button below if it's too dark!"), 8000);
         
+        const videoConstraints = {
+          facingMode: "environment",
+          width: { min: 1280, ideal: 1920 },
+          height: { min: 720, ideal: 1080 }
+        };
+
         scanner.start(
-          { facingMode: "environment" }, 
+          videoConstraints, 
           config,
           (decodedText) => {
             if (navigator.vibrate) navigator.vibrate(100);
@@ -239,17 +252,24 @@ export const InventoryPage: React.FC = () => {
           },
           () => {} 
         ).then(() => {
-          // Check if torch is supported
-          try {
-            const track = (scanner as any).getRunningTrack();
-            if (track && track.getCapabilities && track.getCapabilities().torch) {
-              setHasTorch(true);
+          // Robust Torch Check - Wait for stream to stabilize
+          setTimeout(() => {
+            try {
+              const track = (scanner as any).getRunningTrack();
+              if (track && track.getCapabilities && track.getCapabilities().torch) {
+                setHasTorch(true);
+              }
+            } catch (e) {
+              console.log("Torch check error", e);
             }
-          } catch (e) {
-            console.log("Torch not supported on this track", e);
-          }
+          }, 1000);
         }).catch(err => {
-          console.error("Scanner start error:", err);
+          console.error("HD Start failed, falling back...", err);
+          scanner.start({ facingMode: "environment" }, config, (text) => {
+            if (navigator.vibrate) navigator.vibrate(100);
+            handleBarcodeLookup(text);
+            scanner.stop().catch(e => console.error(e));
+          }, () => {});
         });
       }, 500);
       
@@ -1190,33 +1210,55 @@ export const InventoryPage: React.FC = () => {
                     <p className="text-sm font-bold uppercase tracking-widest animate-pulse">Finding Product...</p>
                   </div>
                 )}
-
-                <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 flex justify-center pointer-events-none">
-                  <div className="w-64 h-32 border-2 border-primary-500 rounded-xl relative">
-                    <div className="absolute inset-x-0 top-1/2 h-0.5 bg-primary-500/50 animate-scan-line"></div>
-                  </div>
-                </div>
               </div>
               
               <div className="mt-6 space-y-4">
                 <div className="bg-primary-50 dark:bg-primary-900/10 p-4 rounded-2xl border border-primary-100 dark:border-primary-900/30">
-                  <p className="text-sm text-primary-600 dark:text-primary-400 text-center font-bold animate-pulse">
+                  <p className="text-sm text-primary-600 dark:text-primary-400 text-center font-bold">
                     {scanTip}
                   </p>
                 </div>
 
-                {hasTorch && (
+                <div className="grid grid-cols-2 gap-3">
+                  {hasTorch && (
+                    <button 
+                      onClick={toggleTorch}
+                      className={`py-4 rounded-2xl font-bold flex items-center justify-center gap-2 transition-all uppercase tracking-widest text-[10px] ${
+                        isTorchOn 
+                        ? 'bg-yellow-400 text-yellow-900 shadow-lg shadow-yellow-400/20' 
+                        : 'bg-gray-800 text-gray-200 hover:bg-gray-700'
+                      }`}
+                    >
+                      <Zap className={`w-3.5 h-3.5 ${isTorchOn ? 'fill-current' : ''}`} />
+                      {isTorchOn ? 'Flash Off' : 'Flash On'}
+                    </button>
+                  )}
                   <button 
-                    onClick={toggleTorch}
-                    className={`w-full py-4 rounded-2xl font-bold flex items-center justify-center gap-3 transition-all uppercase tracking-widest text-xs ${
-                      isTorchOn 
-                      ? 'bg-yellow-400 text-yellow-900 shadow-lg shadow-yellow-400/20' 
-                      : 'bg-gray-800 text-gray-200 hover:bg-gray-700'
-                    }`}
+                    onClick={() => setShowManualInput(!showManualInput)}
+                    className="py-4 bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 rounded-2xl font-bold uppercase tracking-widest text-[10px] hover:bg-gray-200 dark:hover:bg-gray-700 transition-all flex items-center justify-center gap-2"
                   >
-                    <Zap className={`w-4 h-4 ${isTorchOn ? 'fill-current' : ''}`} />
-                    {isTorchOn ? 'Turn Off Flash' : 'Turn On Flash'}
+                    <Edit2 className="w-3.5 h-3.5" />
+                    {showManualInput ? 'Hide Input' : 'Type Barcode'}
                   </button>
+                </div>
+
+                {showManualInput && (
+                  <div className="p-4 bg-white dark:bg-gray-800 rounded-2xl border-2 border-primary-100 dark:border-primary-900/30 space-y-3 animate-in slide-in-from-top-2">
+                    <input 
+                      type="text"
+                      placeholder="Enter Barcode Manually..."
+                      value={manualBarcode}
+                      onChange={(e) => setManualBarcode(e.target.value)}
+                      className="w-full bg-gray-50 dark:bg-gray-900 border-none rounded-xl px-4 py-3 text-sm font-mono focus:ring-2 focus:ring-primary-500"
+                    />
+                    <button 
+                      onClick={() => handleBarcodeLookup(manualBarcode)}
+                      disabled={!manualBarcode || lookupLoading}
+                      className="w-full py-3 bg-primary-500 text-white rounded-xl font-bold text-xs uppercase tracking-widest disabled:opacity-50"
+                    >
+                      {lookupLoading ? 'Looking up...' : 'Search Barcode'}
+                    </button>
+                  </div>
                 )}
 
                 <button 

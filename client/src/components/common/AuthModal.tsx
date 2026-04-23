@@ -80,6 +80,13 @@ export const AuthModal: React.FC = () => {
         xfbml      : true,
         version    : 'v21.0'
       });
+
+      // Auto-check login status when SDK is ready
+      (window as any).FB.getLoginStatus((response: any) => {
+        if (response.status === 'connected') {
+          console.log('User already logged into Facebook and authorized the app.');
+        }
+      });
     };
 
     const loadSdk = (d: Document, s: string, id: string) => {

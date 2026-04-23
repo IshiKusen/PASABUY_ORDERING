@@ -97,12 +97,25 @@ router.post('/', authenticate, async (req, res) => {
 
         let orderUserId = req.user.id;
         if (req.user.role === 'admin' && customer_details) {
-            const { data: guest } = await supabase.from('users').insert({
-                full_name: customer_details.fullName || 'Walk-in',
-                email: `guest_${Date.now()}@pasabuy.local`,
-                role: 'customer'
-            }).select().single();
-            orderUserId = guest.id;
+            if (customer_details.userId) {
+                orderUserId = customer_details.userId;
+                // Optionally update the existing user's info if it changed
+                await supabase.from('users').update({
+                    phone: customer_details.mobile || null,
+                    address: customer_details.address || null,
+                }).eq('id', orderUserId);
+            } else {
+                const { data: guest, error: guestErr } = await supabase.from('users').insert({
+                    full_name: customer_details.fullName || 'Walk-in',
+                    email: `guest_${Date.now()}@pasabuy.local`,
+                    phone: customer_details.mobile || null,
+                    address: customer_details.address || null,
+                    role: 'customer'
+                }).select().single();
+                
+                if (guestErr) throw guestErr;
+                orderUserId = guest.id;
+            }
         }
 
         // Get current batch name

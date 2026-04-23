@@ -4,7 +4,8 @@ import { useAuthStore } from '../../store/authStore';
 import { getImageUrl } from '../../utils/image';
 import { X, Minus, Plus, Trash2, ShoppingBag, ShoppingCart } from 'lucide-react';
 import { MOCK_CONFIG } from '../../utils/mockData';
-import { ordersApi } from '../../utils/api';
+import { ordersApi, usersApi } from '../../utils/api';
+import { Search, User, UserPlus } from 'lucide-react';
 
 
 export const CartDrawer: React.FC = () => {
@@ -16,6 +17,46 @@ export const CartDrawer: React.FC = () => {
   const [walkInName, setWalkInName] = React.useState('');
   const [walkInNumber, setWalkInNumber] = React.useState('');
   const [walkInLocation, setWalkInLocation] = React.useState('');
+  const [walkInUserId, setWalkInUserId] = React.useState<number | null>(null);
+
+  const dropdownRef = React.useRef<HTMLDivElement>(null);
+  const [allUsers, setAllUsers] = React.useState<any[]>([]);
+  const [searchQuery, setSearchQuery] = React.useState('');
+  const [showUserDropdown, setShowUserDropdown] = React.useState(false);
+
+  React.useEffect(() => {
+    if (user?.role === 'admin' && isCartOpen) {
+      fetchUsers();
+    }
+  }, [user, isCartOpen]);
+
+  React.useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setShowUserDropdown(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const fetchUsers = async () => {
+    try {
+      const res = await usersApi.list();
+      setAllUsers(res.users || []);
+    } catch (err) {
+      console.error('Failed to fetch users', err);
+    }
+  };
+
+  const handleSelectUser = (u: any) => {
+    setWalkInName(u.full_name || '');
+    setWalkInNumber(u.phone || '');
+    setWalkInLocation(u.address || '');
+    setWalkInUserId(u.id);
+    setShowUserDropdown(false);
+    setSearchQuery(u.full_name || '');
+  };
 
   const handleCheckout = async () => {
     if (!isAuthenticated) {
@@ -49,6 +90,7 @@ export const CartDrawer: React.FC = () => {
           fullName: walkInName,
           mobile: walkInNumber,
           address: walkInLocation,
+          userId: walkInUserId,
           lat: 14.7547, // Default coordinate, can be enhanced to Geocode
           lng: 120.9607
         };
@@ -184,7 +226,16 @@ export const CartDrawer: React.FC = () => {
                   <input 
                     type="checkbox" 
                     checked={isAdminWalkIn}
-                    onChange={(e) => setIsAdminWalkIn(e.target.checked)}
+                    onChange={(e) => {
+                      setIsAdminWalkIn(e.target.checked);
+                      if (!e.target.checked) {
+                        setWalkInName('');
+                        setWalkInNumber('');
+                        setWalkInLocation('');
+                        setWalkInUserId(null);
+                        setSearchQuery('');
+                      }
+                    }}
                     className="accent-primary-600 w-4 h-4"
                   />
                   Process as Walk-in Order (External)
@@ -192,13 +243,80 @@ export const CartDrawer: React.FC = () => {
                 
                 {isAdminWalkIn && (
                   <div className="space-y-3 mt-2 animate-fade-in">
+                    {/* Guest Selection Search */}
+                    <div className="relative" ref={dropdownRef}>
+                      <div className="relative">
+                        <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                        <input 
+                          type="text" 
+                          placeholder="Search existing guest/customer..." 
+                          className={`input text-sm p-2 pl-9 w-full bg-white dark:bg-dark-surface border-2 transition-all ${walkInUserId ? 'border-primary-500 ring-2 ring-primary-500/20' : 'border-transparent focus:border-primary-500'}`}
+                          value={searchQuery}
+                          onFocus={() => setShowUserDropdown(true)}
+                          onChange={(e) => {
+                            setSearchQuery(e.target.value);
+                            setWalkInName(e.target.value);
+                            setWalkInUserId(null);
+                            setShowUserDropdown(true);
+                          }}
+                        />
+                        {walkInUserId && (
+                          <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-1 text-[10px] font-bold text-primary-600 bg-primary-50 px-2 py-0.5 rounded-full">
+                            <User size={10} />
+                            LINKED
+                          </div>
+                        )}
+                      </div>
+                      
+                      {showUserDropdown && searchQuery && (
+                        <div className="absolute z-10 w-full mt-1 bg-white dark:bg-dark-surface border border-gray-200 dark:border-gray-700 rounded-xl shadow-xl max-h-48 overflow-y-auto custom-scrollbar animate-in fade-in slide-in-from-top-2">
+                          {allUsers
+                            .filter(u => 
+                              u.full_name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                              u.phone?.includes(searchQuery) ||
+                              u.email?.toLowerCase().includes(searchQuery.toLowerCase())
+                            )
+                            .slice(0, 5)
+                            .map(u => (
+                              <button
+                                key={u.id}
+                                onClick={() => handleSelectUser(u)}
+                                className="w-full flex items-center gap-3 p-3 text-left hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors border-b border-gray-50 dark:border-gray-800 last:border-0 group"
+                              >
+                                <div className="w-8 h-8 rounded-full bg-primary-100 dark:bg-primary-900/30 flex items-center justify-center text-primary-600 group-hover:scale-110 transition-transform">
+                                  <User size={14} />
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                  <p className="text-sm font-bold dark:text-white truncate">{u.full_name}</p>
+                                  <p className="text-[10px] text-gray-500 truncate font-medium">
+                                    {u.phone || u.email || 'No contact info'} • {u.address || 'No address'}
+                                  </p>
+                                </div>
+                              </button>
+                            ))}
+                          {allUsers.filter(u => 
+                            u.full_name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                            u.phone?.includes(searchQuery) ||
+                            u.email?.toLowerCase().includes(searchQuery.toLowerCase())
+                          ).length === 0 && (
+                            <div className="p-4 text-center">
+                              <div className="inline-flex p-2 bg-gray-50 dark:bg-gray-800 rounded-full text-gray-400 mb-2">
+                                <UserPlus size={16} />
+                              </div>
+                              <p className="text-xs text-gray-500">Creating as new customer</p>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+
                     <div>
                       <input 
                         type="text" 
                         placeholder="Customer Full Name *" 
-                        className="input text-sm p-2 w-full"
+                        className="input text-sm p-2 w-full bg-gray-50 dark:bg-dark-surfaceAlt opacity-70"
                         value={walkInName}
-                        onChange={(e) => setWalkInName(e.target.value)}
+                        readOnly // Since we use the search bar for the name
                       />
                     </div>
                     <div>

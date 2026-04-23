@@ -1,42 +1,21 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { ShoppingCart, ArrowRight, Package, Truck, CheckCircle, MessageSquare, Clock, Shield, Star, ChevronRight, Smartphone } from 'lucide-react';
+import { ShoppingCart, ArrowRight, Package, Truck, CheckCircle, MessageSquare, Clock, Shield, Star, ChevronRight, Smartphone, Filter } from 'lucide-react';
 import { productsApi, configApi } from '../../utils/api';
 import { getImageUrl } from '../../utils/image';
 import { useCartStore } from '../../store/cartStore';
+import { VariantSelectionModal, FullScreenImageModal, type Product, type Variant } from '../../components/customer/ProductModals';
 import logo from '../../../Images/PasabuyLogo.png';
 
-interface Variant {
-  id: number;
-  product_id: number;
-  variant_name: string;
-  price_php: string;
-  price_jpy: string;
-  stock: number;
-  image_path?: string;
-}
 
-interface Product {
-  id: number;
-  name: string;
-  description: string;
-  price_php: string;
-  price_jpy: string;
-  category_id: number;
-  category_name: string;
-  stock: number;
-  image_path: string;
-  variants?: Variant[];
-  has_variants?: boolean;
-  min_price?: number;
-  max_price?: number;
-}
 
 export const HomePage: React.FC = () => {
   const [featuredProducts, setFeaturedProducts] = useState<Product[]>([]);
   const [config, setConfig] = useState<any>({});
   const [loading, setLoading] = useState(true);
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
+  const [selectedProductForVariant, setSelectedProductForVariant] = useState<Product | null>(null);
+  const [fullScreenImageUrl, setFullScreenImageUrl] = useState<string | null>(null);
   const addItem = useCartStore((state) => state.addItem);
 
   useEffect(() => {
@@ -368,59 +347,84 @@ export const HomePage: React.FC = () => {
           ) : (
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 md:gap-6">
               {featuredProducts.map((product) => (
-                <div
-                  key={product.id}
-                  className="group bg-white dark:bg-dark-surface rounded-3xl shadow-sm hover:shadow-xl transition-all duration-300 overflow-hidden flex flex-col h-full border border-transparent dark:border-gray-800"
+                <div 
+                  key={product.id} 
+                  className="group bg-white dark:bg-dark-surface rounded-[32px] overflow-hidden border border-gray-100 dark:border-gray-800 hover:shadow-2xl hover:shadow-pink-100/50 dark:hover:shadow-none hover:-translate-y-2 transition-all duration-500 flex flex-col h-full"
                 >
-                  <div className="relative pt-[100%] bg-gray-50 dark:bg-dark-surfaceAlt overflow-hidden">
+                  <div 
+                    className="relative aspect-square overflow-hidden cursor-zoom-in"
+                    onClick={() => setFullScreenImageUrl(getImageUrl(product.image_path))}
+                  >
                     <img
                       src={getImageUrl(product.image_path)}
                       alt={product.name}
-                      className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                      className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700"
                       loading="lazy"
                     />
-                    <div className="absolute top-3 left-3">
-                      <span className="bg-white/95 dark:bg-dark-surface/95 backdrop-blur-sm px-2.5 py-1 rounded-full text-[11px] font-semibold text-gray-700 dark:text-gray-300 shadow-sm">
+                    <div className="absolute top-4 left-4">
+                      <span className="bg-white/90 dark:bg-dark-bg/90 backdrop-blur-md text-primary-600 dark:text-primary-400 text-[10px] font-black px-3 py-1.5 rounded-full uppercase tracking-widest shadow-sm">
                         {product.category_name}
                       </span>
                     </div>
                   </div>
 
-                  <div className="p-4 flex flex-col flex-grow">
-                    <h3 className="text-sm font-bold text-gray-900 dark:text-white mb-1 line-clamp-2 leading-snug">
-                      {product.name}
-                    </h3>
-                    {product.description && (
-                      <p className="text-primary-600 dark:text-primary-400 text-[10px] font-bold uppercase tracking-wider mb-2">
-                        {product.description}
-                      </p>
-                    )}
-                    <div className="flex items-center justify-between mt-auto">
-                      <span className="text-lg font-bold text-[#d62b70]">
-                        {product.has_variants && Number(product.min_price) !== Number(product.max_price)
-                          ? `₱${Number(product.min_price).toLocaleString()}`
-                          : `₱${Number(product.min_price || product.price_php).toLocaleString()}`}
-                      </span>
-                      {product.has_variants ? (
-                        <Link
-                          to="/products"
-                          className="w-9 h-9 rounded-full bg-gray-50 dark:bg-dark-surfaceAlt hover:bg-[#d62b70] hover:text-white text-gray-400 flex items-center justify-center transition-all duration-300"
-                          title="View Variants"
-                        >
-                          <ChevronRight className="w-4 h-4" />
-                        </Link>
-                      ) : (
-                        <button
-                          onClick={() => handleAddToCart(product)}
-                          className="w-9 h-9 rounded-full bg-gray-50 dark:bg-dark-surfaceAlt hover:bg-[#d62b70] hover:text-white text-gray-400 flex items-center justify-center transition-all duration-300"
-                          title="Add to Cart"
-                        >
-                          <ShoppingCart className="w-4 h-4" />
-                        </button>
+                  <div 
+                    className={`p-6 flex flex-col flex-grow ${product.has_variants ? 'cursor-pointer hover:bg-gray-50/50 dark:hover:bg-gray-800/20' : ''}`}
+                    onClick={() => {
+                      if (product.has_variants) {
+                        setSelectedProductForVariant(product);
+                      }
+                    }}
+                  >
+                    <div className="mb-4 flex-grow">
+                      <h3 className="font-bold text-gray-900 dark:text-white group-hover:text-primary-500 transition-colors line-clamp-2 leading-snug">
+                        {product.name}
+                      </h3>
+                      {product.description && (
+                        <p className="text-primary-600 dark:text-primary-400 text-[10px] font-bold uppercase tracking-wider mb-2">
+                          {product.description}
+                        </p>
                       )}
+                    </div>
+                    
+                    <div className="flex items-center justify-between mt-auto">
+                      <div className="flex flex-col">
+                        <span className="text-xl font-black text-gray-900 dark:text-white">
+                          {product.has_variants && Number(product.min_price) !== Number(product.max_price)
+                            ? `₱${Number(product.min_price).toLocaleString()} - ${Number(product.max_price).toLocaleString()}`
+                            : `₱${Number(product.min_price || product.price_php).toLocaleString()}`
+                          }
+                        </span>
+                        {product.has_variants && (
+                          <span className="text-[9px] font-black uppercase text-gray-400 tracking-tighter mt-0.5">Click to select options</span>
+                        )}
+                      </div>
+                      
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          if (product.has_variants) {
+                            setSelectedProductForVariant(product);
+                          } else {
+                            addItem({
+                              id: String(product.id),
+                              name: product.name,
+                              pricePhp: Number(product.price_php),
+                              imageUrl: product.image_path,
+                              category: product.category_name,
+                              description: product.description,
+                              stock: Number(product.stock)
+                            });
+                          }
+                        }}
+                        className="w-12 h-12 rounded-2xl bg-gray-50 dark:bg-dark-surfaceAlt hover:bg-[#d62b70] hover:text-white text-gray-400 flex items-center justify-center transition-all duration-300 shadow-inner"
+                      >
+                        {product.has_variants ? <Filter size={20} /> : <ShoppingCart size={20} />}
+                      </button>
                     </div>
                   </div>
                 </div>
+
               ))}
             </div>
           )}
@@ -564,6 +568,35 @@ export const HomePage: React.FC = () => {
           </div>
         </div>
       </footer>
+      {/* Modals */}
+      {selectedProductForVariant && (
+        <VariantSelectionModal
+          product={selectedProductForVariant}
+          onClose={() => setSelectedProductForVariant(null)}
+          onImageClick={(url) => setFullScreenImageUrl(url)}
+          onAdd={(variant) => {
+            addItem({
+              id: String(selectedProductForVariant.id),
+              variantId: String(variant.id),
+              name: `${selectedProductForVariant.name} (${variant.variant_name})`,
+              pricePhp: Number(variant.price_php),
+              imageUrl: variant.image_path || selectedProductForVariant.image_path,
+              category: selectedProductForVariant.category_name,
+              description: selectedProductForVariant.description,
+              stock: Number(variant.stock)
+            });
+            setSelectedProductForVariant(null);
+          }}
+        />
+      )}
+
+      {fullScreenImageUrl && (
+        <FullScreenImageModal
+          imageUrl={fullScreenImageUrl}
+          onClose={() => setFullScreenImageUrl(null)}
+        />
+      )}
     </div>
   );
 };
+

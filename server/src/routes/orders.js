@@ -74,9 +74,25 @@ router.post('/', authenticate, async (req, res) => {
 
         // Calc total & validate
         for (const item of items) {
-           const { data: product } = await supabase.from('products').select('*').eq('id', item.product_id).single();
-           item.price = product.price_php;
-           total += item.price * item.quantity;
+            let price = 0;
+            if (item.variant_id) {
+                const { data: variant } = await supabase
+                    .from('product_variants')
+                    .select('price_php')
+                    .eq('id', item.variant_id)
+                    .single();
+                price = Number(variant?.price_php || 0);
+            } else {
+                const { data: product } = await supabase
+                    .from('products')
+                    .select('price_php')
+                    .eq('id', item.product_id)
+                    .single();
+                price = Number(product?.price_php || 0);
+            }
+            
+            item.price = price;
+            total += price * item.quantity;
         }
 
         let orderUserId = req.user.id;

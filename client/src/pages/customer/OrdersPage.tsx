@@ -10,6 +10,7 @@ interface OrderItem {
   quantity: number;
   price_at_purchase: number;
   image_path: string;
+  variant_name?: string;
 }
 
 interface Order {
@@ -22,6 +23,7 @@ interface Order {
   items: OrderItem[];
   item_count: number;
   cancellation_reason?: string;
+  batch_name?: string;
 }
 
 export const OrdersPage: React.FC = () => {
@@ -140,6 +142,9 @@ export const OrdersPage: React.FC = () => {
                       <div className="flex items-center gap-2 mb-1">
                         <span className="text-xs font-bold text-gray-400 uppercase tracking-widest">Order Code</span>
                         <span className="text-sm font-black text-gray-900 dark:text-white">{order.order_code}</span>
+                        {order.batch_name && (
+                          <span className="ml-2 px-2 py-0.5 bg-gray-100 dark:bg-gray-800 rounded text-[9px] font-bold text-gray-500 uppercase">{order.batch_name}</span>
+                        )}
                       </div>
                       <div className="flex items-center gap-2 text-xs text-gray-500 font-medium">
                         <Clock size={12} />
@@ -168,6 +173,9 @@ export const OrdersPage: React.FC = () => {
                         </div>
                         <div>
                           <p className="text-xs font-bold dark:text-white line-clamp-1 max-w-[150px]">{item.product_name}</p>
+                          {item.variant_name && (
+                            <p className="text-[9px] text-primary-500 font-bold uppercase truncate max-w-[150px]">{item.variant_name}</p>
+                          )}
                           <p className="text-[10px] text-gray-500 font-bold uppercase">Qty: {item.quantity}</p>
                         </div>
                       </div>
@@ -216,7 +224,7 @@ export const OrdersPage: React.FC = () => {
                 </div>
                 <div>
                   <h2 className="text-xl font-black dark:text-white uppercase tracking-tight">Order Details</h2>
-                  <p className="text-xs text-gray-500 font-bold">{selectedOrder.order_code}</p>
+                  <p className="text-xs text-gray-500 font-bold">{selectedOrder.order_code} {selectedOrder.batch_name && `• ${selectedOrder.batch_name}`}</p>
                 </div>
               </div>
               <button 
@@ -309,6 +317,9 @@ export const OrdersPage: React.FC = () => {
                       />
                       <div className="flex-1">
                         <h4 className="text-sm font-bold dark:text-white line-clamp-1">{item.product_name}</h4>
+                        {item.variant_name && (
+                          <p className="text-[10px] font-bold text-primary-500 uppercase mb-1">{item.variant_name}</p>
+                        )}
                         <div className="flex items-center gap-2 text-xs text-gray-500 mt-1 font-medium">
                           <span>₱{item.price_at_purchase.toLocaleString()}</span>
                           <span className="text-gray-300">×</span>

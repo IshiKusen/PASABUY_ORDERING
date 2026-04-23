@@ -47,6 +47,7 @@ interface Order {
   item_count: number;
   created_at: string;
   cancellation_reason?: string;
+  batch_name?: string;
 }
 
 const STATUS_TABS = ['All', 'Pending', 'Confirmed', 'Purchased', 'Transit', 'Delivered', 'Cancelled'];
@@ -238,6 +239,7 @@ export const AdminOrdersPage: React.FC = () => {
                   <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Order ID</th>
                   <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Product</th>
                   <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Customer</th>
+                  <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Batch</th>
                   <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Total</th>
                   <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Status</th>
                   <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Date</th>
@@ -292,6 +294,11 @@ export const AdminOrdersPage: React.FC = () => {
                         </div>
                         <span className="text-sm font-medium dark:text-white">{order.customer_name}</span>
                       </div>
+                    </td>
+                    <td className="px-6 py-4">
+                      <span className="text-xs font-bold text-gray-500 bg-gray-100 dark:bg-gray-800 px-2 py-1 rounded-lg">
+                        {order.batch_name || 'N/A'}
+                      </span>
                     </td>
                     <td className="px-6 py-4 font-bold text-sm dark:text-white">₱{Number(order.total).toLocaleString()}</td>
                     <td className="px-6 py-4">
@@ -369,6 +376,7 @@ export const AdminOrdersPage: React.FC = () => {
                     <p className="flex items-center gap-2 dark:text-white"><strong className="w-24 text-gray-400">Email:</strong> {selectedOrder.customer_email}</p>
                     <p className="flex items-center gap-2 dark:text-white"><strong className="w-24 text-gray-400">Phone:</strong> {selectedOrder.customer_phone || 'N/A'}</p>
                     <p className="flex items-start gap-2 dark:text-white"><MapPin className="text-gray-400 mt-1 shrink-0" size={16} /><strong className="w-24 text-gray-400">Address:</strong> {selectedOrder.customer_address || 'N/A'}</p>
+                    <p className="flex items-center gap-2 dark:text-white"><strong className="w-24 text-gray-400">Batch:</strong> <span className="bg-primary-100 dark:bg-primary-900/30 text-primary-600 px-2 py-0.5 rounded text-xs font-bold">{selectedOrder.batch_name || 'N/A'}</span></p>
                   </div>
                 </section>
 

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { getImageUrl } from '../../utils/image';
 
 export interface Variant {

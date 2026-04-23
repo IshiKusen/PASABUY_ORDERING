@@ -110,6 +110,7 @@ export const ordersApi = {
     apiFetch('/orders/bulk-status', { method: 'PUT', body: JSON.stringify({ order_ids, status }) }),
 
   getStats: () => apiFetch('/orders/stats'),
+  getBatchHistory: () => apiFetch('/orders/batch-history'),
   cancel: (id: number, reason: string) =>
     apiFetch(`/orders/${id}/cancel`, { method: 'PUT', body: JSON.stringify({ reason }) }),
 };

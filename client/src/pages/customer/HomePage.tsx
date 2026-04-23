@@ -4,7 +4,7 @@ import { ShoppingCart, ArrowRight, Package, Truck, CheckCircle, MessageSquare, C
 import { productsApi, configApi } from '../../utils/api';
 import { getImageUrl } from '../../utils/image';
 import { useCartStore } from '../../store/cartStore';
-import { VariantSelectionModal, FullScreenImageModal, type Product, type Variant } from '../../components/customer/ProductModals';
+import { VariantSelectionModal, FullScreenImageModal, type Product } from '../../components/customer/ProductModals';
 import logo from '../../../Images/PasabuyLogo.png';
 
 
@@ -90,18 +90,6 @@ export const HomePage: React.FC = () => {
     return `${startMonth} ${startDate}`;
   };
 
-  const handleAddToCart = (product: Product) => {
-    if (product.has_variants) return; // variants need the modal on Products page
-    addItem({
-      id: String(product.id),
-      name: product.name,
-      pricePhp: Number(product.price_php),
-      imageUrl: product.image_path,
-      category: product.category_name,
-      description: product.description,
-      stock: Number(product.stock)
-    });
-  };
 
   const handleContactClick = (type: 'whatsapp' | 'messenger') => {
     const link = type === 'whatsapp' ? config.whatsapp_link : config.messenger_link;
@@ -577,7 +565,7 @@ export const HomePage: React.FC = () => {
           onAdd={(variant) => {
             addItem({
               id: String(selectedProductForVariant.id),
-              variantId: String(variant.id),
+              variantId: Number(variant.id),
               name: `${selectedProductForVariant.name} (${variant.variant_name})`,
               pricePhp: Number(variant.price_php),
               imageUrl: variant.image_path || selectedProductForVariant.image_path,

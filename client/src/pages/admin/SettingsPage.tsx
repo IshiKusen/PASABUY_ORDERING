@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { Calendar, Save, Clock, Info, History, DollarSign, MessageSquare, Loader2 } from 'lucide-react';
-import { configApi } from '../../utils/api';
+import { Calendar, Save, Clock, Info, History, DollarSign, MessageSquare, Loader2, RefreshCw } from 'lucide-react';
+import { configApi, ordersApi } from '../../utils/api';
 
 export const SettingsPage: React.FC = () => {
   const [loading, setLoading] = useState(true);
@@ -16,6 +16,8 @@ export const SettingsPage: React.FC = () => {
     whatsapp_link: '',
     messenger_link: ''
   });
+  const [batchHistory, setBatchHistory] = useState<any[]>([]);
+  const [syncingRate, setSyncingRate] = useState(false);
 
   const loadConfig = async () => {
     try {
@@ -35,8 +37,18 @@ export const SettingsPage: React.FC = () => {
     }
   };
 
+  const loadBatchHistory = async () => {
+    try {
+      const data = await ordersApi.getBatchHistory();
+      setBatchHistory(data.history || []);
+    } catch (err) {
+      console.error('Failed to load batch history:', err);
+    }
+  };
+
   useEffect(() => {
     loadConfig();
+    loadBatchHistory();
   }, []);
 
   const handleSave = async (e: React.FormEvent) => {
@@ -49,6 +61,25 @@ export const SettingsPage: React.FC = () => {
       alert(err.message || 'Failed to save config');
     } finally {
       setSaving(false);
+    }
+  };
+
+  const syncRate = async () => {
+    setSyncingRate(true);
+    try {
+      const response = await fetch('https://open.er-api.com/v6/latest/JPY');
+      const data = await response.json();
+      if (data && data.rates && data.rates.PHP) {
+        const rate = data.rates.PHP.toFixed(2);
+        setConfig(prev => ({ ...prev, jpy_to_php_rate: rate }));
+      } else {
+        throw new Error('Could not fetch PHP rate from API');
+      }
+    } catch (err) {
+      console.error('Failed to sync rate:', err);
+      alert('Failed to sync exchange rate. Please enter it manually.');
+    } finally {
+      setSyncingRate(false);
     }
   };
 
@@ -138,6 +169,15 @@ export const SettingsPage: React.FC = () => {
                   onChange={(e) => setConfig({...config, jpy_to_php_rate: e.target.value})}
                   placeholder="0.38"
                 />
+                <button 
+                  type="button"
+                  onClick={syncRate}
+                  disabled={syncingRate}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 text-primary-500 hover:bg-primary-50 dark:hover:bg-primary-900/20 rounded-lg transition-all flex items-center gap-1.5 font-bold text-[10px] uppercase tracking-wider border border-transparent hover:border-primary-100 dark:hover:border-primary-800"
+                >
+                  {syncingRate ? <Loader2 size={12} className="animate-spin" /> : <RefreshCw size={12} />}
+                  Auto-Sync
+                </button>
               </div>
               <p className="text-[10px] text-gray-400 mt-1">Multiplier used when setting product prices from JPY.</p>
             </div>
@@ -218,32 +258,41 @@ export const SettingsPage: React.FC = () => {
         </form>
       </div>
 
-      <div className="card p-8 opacity-60 pointer-events-none">
+      <div className="card p-8">
         <div className="flex items-center gap-3 mb-6">
-          <div className="bg-gray-100 dark:bg-gray-800 p-2 rounded-lg text-gray-500">
+          <div className="bg-primary-100 dark:bg-primary-900/30 p-2 rounded-lg text-primary-600">
             <History size={24} />
           </div>
           <div>
-            <h2 className="text-xl font-bold dark:text-white">Batch History (Coming Soon)</h2>
+            <h2 className="text-xl font-bold dark:text-white">Batch History</h2>
             <p className="text-sm text-gray-500">Review past ordering batches and their performance.</p>
           </div>
         </div>
 
         <div className="space-y-3">
-          {[
-            { name: 'Holiday Batch 2025', date: 'Dec 2025', orders: 45, status: 'Completed' },
-            { name: 'Mid-Year Batch 2025', date: 'Aug 2025', orders: 78, status: 'Completed' },
-          ].map((batch, i) => (
-             <div key={i} className="flex items-center justify-between p-4 rounded-xl bg-gray-50 dark:bg-dark-surfaceAlt border border-gray-100 dark:border-gray-800">
-               <div>
-                 <p className="font-bold text-sm dark:text-white">{batch.name}</p>
-                 <p className="text-xs text-gray-500">{batch.date} • {batch.orders} total orders</p>
-               </div>
-               <span className="px-3 py-1 rounded-full bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-400 text-[10px] font-bold uppercase">
-                 {batch.status}
-               </span>
-             </div>
-          ))}
+          {batchHistory.length > 0 ? (
+            batchHistory.map((batch, i) => (
+              <div key={i} className="flex items-center justify-between p-4 rounded-xl bg-gray-50 dark:bg-dark-surfaceAlt border border-gray-100 dark:border-gray-800">
+                <div>
+                  <p className="font-bold text-sm dark:text-white">{batch.name}</p>
+                  <p className="text-xs text-gray-500">
+                    {batch.date} • {batch.total_orders} orders • 
+                    <span className="text-primary-600 font-bold ml-1">
+                      ₱{(batch.total_revenue || 0).toLocaleString()}
+                    </span>
+                  </p>
+                </div>
+                <span className="px-3 py-1 rounded-full bg-primary-100 dark:bg-primary-900/30 text-primary-600 dark:text-primary-400 text-[10px] font-bold uppercase">
+                  {batch.status}
+                </span>
+              </div>
+            ))
+          ) : (
+            <div className="text-center py-10 bg-gray-50 dark:bg-dark-surfaceAlt rounded-2xl border border-dashed border-gray-200 dark:border-gray-800">
+               <History size={32} className="mx-auto text-gray-300 mb-2" />
+               <p className="text-xs text-gray-500 font-medium">No completed batches found yet.</p>
+            </div>
+          )}
         </div>
       </div>
     </div>

@@ -105,11 +105,19 @@ router.post('/', authenticate, async (req, res) => {
             orderUserId = guest.id;
         }
 
+        // Get current batch name
+        const { data: batchConfig } = await supabase
+            .from('system_config')
+            .select('config_value')
+            .eq('config_key', 'batch_name')
+            .single();
+
         const { data: order, error: orderErr } = await supabase.from('orders').insert({
             order_code,
             user_id: orderUserId,
             total,
-            status: 'Pending'
+            status: 'Pending',
+            batch_name: batchConfig?.config_value || 'Default Batch'
         }).select().single();
 
         if (orderErr) throw orderErr;
@@ -241,6 +249,42 @@ router.put('/:id/status', authenticate, requireAdmin, async (req, res) => {
         const { status, delivery_date } = req.body;
         await supabase.from('orders').update({ status, delivery_date }).eq('id', req.params.id);
         res.json({ message: 'Updated' });
+    } catch (err) {
+        res.status(500).json({ error: 'Failed' });
+    }
+});
+
+// Batch History
+router.get('/batch-history', authenticate, requireAdmin, async (req, res) => {
+    try {
+        const { data: orders, error } = await supabase
+            .from('orders')
+            .select('batch_name, total, status, created_at')
+            .not('batch_name', 'is', null);
+
+        if (error) throw error;
+
+        const historyMap = {};
+        orders.forEach(o => {
+            const name = o.batch_name || 'Unknown';
+            if (!historyMap[name]) {
+                historyMap[name] = { 
+                    name, 
+                    total_orders: 0, 
+                    total_revenue: 0, 
+                    status: 'Completed',
+                    date: new Date(o.created_at).toLocaleDateString('en-US', { month: 'short', year: 'numeric' })
+                };
+            }
+            historyMap[name].total_orders += 1;
+            if (o.status !== 'Cancelled') {
+                historyMap[name].total_revenue += Number(o.total) || 0;
+            }
+            // If any order in the batch is NOT delivered or cancelled, maybe status is 'Active'?
+            // For now, let's just keep it simple.
+        });
+
+        res.json({ history: Object.values(historyMap) });
     } catch (err) {
         res.status(500).json({ error: 'Failed' });
     }

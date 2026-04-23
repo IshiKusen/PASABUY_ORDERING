@@ -964,8 +964,11 @@ export const InventoryPage: React.FC = () => {
                   )}
                 </div>
                 <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={(e) => handleFileChange(e)} />
-                <input ref={cameraInputRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={(e) => hand               {/* Fields Grouped */}
-              <div className="space-y-8">
+                <input ref={cameraInputRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={(e) => handleFileChange(e)} />
+              </div>
+
+            {/* Fields Grouped */}
+            <div className="space-y-8">
                 {/* Section: Basic Information */}
                 <div className="space-y-4">
                   <div className="flex items-center gap-2 pb-2 border-b dark:border-gray-800">
@@ -1263,11 +1266,11 @@ export const InventoryPage: React.FC = () => {
                       >
                         <Plus size={18} />
                         Add Another Variation
-                         )}
+                      </button>
+                    </div>
+                  ) : null}
                 </div>
-              </div>                )}
-                </div>
-             </div>
+              </div>
 
               <div className="flex justify-end gap-3 pt-6 border-t dark:border-gray-800 mt-6">
                 <button type="button" onClick={handleCloseModal} className="btn-secondary">Cancel</button>

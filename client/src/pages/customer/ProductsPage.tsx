@@ -4,7 +4,7 @@ import { Search, MessageSquare, ShoppingCart, Filter } from 'lucide-react';
 import { productsApi, categoriesApi, configApi } from '../../utils/api';
 import { useCartStore } from '../../store/cartStore';
 import { getImageUrl } from '../../utils/image';
-import { VariantSelectionModal, FullScreenImageModal, type Product, type Variant } from '../../components/customer/ProductModals';
+import { VariantSelectionModal, FullScreenImageModal, type Product } from '../../components/customer/ProductModals';
 
 
 interface Category {

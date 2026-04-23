@@ -315,7 +315,7 @@ export const InventoryPage: React.FC = () => {
     if ('clipboardData' in e) {
       items = e.clipboardData.items;
     } else {
-      // This part handles the mobile paste button click
+      // Mobile paste logic
       try {
         const clipboardItems = await navigator.clipboard.read();
         for (const item of clipboardItems) {
@@ -323,8 +323,19 @@ export const InventoryPage: React.FC = () => {
             if (type.startsWith('image/')) {
               const blob = await item.getType(type);
               const file = new File([blob], "pasted_image.png", { type });
-              setFormImageFile(file);
-              setFormImagePreview(URL.createObjectURL(file));
+              
+              if (targetVariantIndex !== null) {
+                const updated = [...formVariants];
+                updated[targetVariantIndex] = { 
+                  ...updated[targetVariantIndex], 
+                  image_file: file, 
+                  image_preview: URL.createObjectURL(file) 
+                };
+                setFormVariants(updated);
+              } else {
+                setFormImageFile(file);
+                setFormImagePreview(URL.createObjectURL(file));
+              }
               setShowPasteButton(false);
               return;
             }
@@ -337,12 +348,25 @@ export const InventoryPage: React.FC = () => {
       return;
     }
 
-    for (let i = 0; i < items.length; i++) {
-      if (items[i].type.indexOf("image") !== -1) {
-        const file = items[i].getAsFile();
-        if (file) {
-          setFormImageFile(file);
-          setFormImagePreview(URL.createObjectURL(file));
+    if (items) {
+      for (let i = 0; i < items.length; i++) {
+        if (items[i].type.indexOf("image") !== -1) {
+          const file = items[i].getAsFile();
+          if (file) {
+            const preview = URL.createObjectURL(file);
+            if (targetVariantIndex !== null) {
+              const updated = [...formVariants];
+              updated[targetVariantIndex] = { 
+                ...updated[targetVariantIndex], 
+                image_file: file, 
+                image_preview: preview 
+              };
+              setFormVariants(updated);
+            } else {
+              setFormImageFile(file);
+              setFormImagePreview(preview);
+            }
+          }
         }
       }
     }
@@ -530,6 +554,17 @@ export const InventoryPage: React.FC = () => {
       if (Number(formCategory) === id) setFormCategory("");
     } catch (err) {
       alert("Failed to delete category. Make sure it's not being used by active records if constraints exist.");
+    }
+  };
+
+  const handleAddCategory = async () => {
+    if (!newCategoryName.trim()) return;
+    try {
+      const data = await categoriesApi.create(newCategoryName.trim());
+      setCategories([...categories, data.category]);
+      setNewCategoryName("");
+    } catch (err) {
+      alert("Failed to add category.");
     }
   };
 
@@ -897,14 +932,16 @@ export const InventoryPage: React.FC = () => {
               <div className="flex flex-col items-center justify-center">
                 <div 
                   className={`w-full h-48 rounded-2xl border-2 border-dashed flex flex-col items-center justify-center transition-all cursor-pointer overflow-hidden relative group ${
-                    dragActive ? 'border-primary-500 bg-primary-50 dark:bg-primary-900/10' : 'border-gray-200 dark:border-gray-800 hover:border-primary-400'
+                    dragActive ? 'border-primary-500 bg-primary-50 dark:bg-primary-900/10' : 
+                    targetVariantIndex === null ? 'border-primary-500 ring-2 ring-primary-500/20 bg-primary-50/5' :
+                    'border-gray-200 dark:border-gray-800 hover:border-primary-400'
                   }`}
                   onDragEnter={handleDrag}
                   onDragLeave={handleDrag}
                   onDragOver={handleDrag}
                   onDrop={handleDrop}
                   onPaste={handlePaste}
-                  onClick={() => fileInputRef.current?.click()}
+                  onClick={() => { setTargetVariantIndex(null); fileInputRef.current?.click(); }}
                   onContextMenu={(e) => { e.preventDefault(); handleTouchStart(); }}
                   onTouchStart={handleTouchStart}
                   onTouchEnd={handleTouchEnd}
@@ -1031,29 +1068,70 @@ export const InventoryPage: React.FC = () => {
                     </div>
 
                     <div>
-                      <label className="block text-xs font-bold text-gray-500 uppercase tracking-tight mb-1">Quick Select Category</label>
-                      <div className="flex flex-wrap gap-2">
-                        {categories.slice(0, 4).map(cat => (
-                          <button
-                            key={cat.id}
-                            type="button"
-                            onClick={() => { setFormCategory(String(cat.id)); setIsNewCategory(false); }}
-                            className={`px-3 py-1.5 rounded-full text-[10px] font-bold uppercase transition-all border ${
-                              formCategory === String(cat.id)
-                              ? "bg-primary-500 border-primary-500 text-white shadow-md shadow-primary-500/20"
-                              : "bg-white dark:bg-dark-surface border-gray-200 dark:border-gray-800 text-gray-500 hover:border-primary-400"
-                            }`}
+                      <label className="block text-xs font-bold text-gray-500 uppercase tracking-tight mb-1">Product Category</label>
+                      <div className="space-y-3">
+                        <div className="flex flex-wrap gap-2">
+                          {categories.slice(0, 5).map(cat => (
+                            <button
+                              key={cat.id}
+                              type="button"
+                              onClick={() => { setFormCategory(String(cat.id)); setIsNewCategory(false); }}
+                              className={`px-3 py-1.5 rounded-full text-[10px] font-bold uppercase transition-all border ${
+                                !isNewCategory && formCategory === String(cat.id)
+                                ? "bg-primary-500 border-primary-500 text-white shadow-md shadow-primary-500/20"
+                                : "bg-white dark:bg-dark-surface border-gray-200 dark:border-gray-800 text-gray-500 hover:border-primary-400"
+                              }`}
+                            >
+                              {cat.name}
+                            </button>
+                          ))}
+                        </div>
+                        
+                        <div className="flex gap-2">
+                          <select 
+                            value={isNewCategory ? "new" : formCategory} 
+                            onChange={(e) => {
+                              if (e.target.value === "new") {
+                                setIsNewCategory(true);
+                                setFormCategory("");
+                              } else {
+                                setIsNewCategory(false);
+                                setFormCategory(e.target.value);
+                              }
+                            }}
+                            className="input flex-1 !rounded-2xl appearance-none bg-no-repeat bg-[right_1rem_center] bg-[length:1em_1em]"
+                            style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='currentColor'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M19 9l-7 7-7-7'%3E%3C/path%3E%3C/svg%3E")` }}
                           >
-                            {cat.name}
+                            <option value="" disabled>Select category...</option>
+                            {categories.map(cat => (
+                              <option key={cat.id} value={cat.id}>{cat.name}</option>
+                            ))}
+                            <option value="new" className="font-bold text-primary-600">+ Add New Category</option>
+                          </select>
+                          
+                          <button 
+                            type="button"
+                            onClick={() => setIsCategoryManagerOpen(true)}
+                            className="p-3 bg-gray-100 dark:bg-dark-surfaceAlt text-gray-500 rounded-2xl hover:bg-gray-200 transition-colors"
+                            title="Manage Categories"
+                          >
+                            <Settings size={20} />
                           </button>
-                        ))}
-                        <button
-                          type="button"
-                          onClick={() => setIsCategoryManagerOpen(true)}
-                          className="px-3 py-1.5 rounded-full text-[10px] font-bold uppercase bg-gray-100 dark:bg-dark-surfaceAlt text-gray-500 border border-transparent hover:bg-gray-200"
-                        >
-                          More...
-                        </button>
+                        </div>
+
+                        {isNewCategory && (
+                          <div className="animate-in slide-in-from-top-1 duration-200">
+                            <input 
+                              type="text" 
+                              value={newCategoryName} 
+                              onChange={e => setNewCategoryName(e.target.value)}
+                              className="input !rounded-2xl border-primary-300 focus:border-primary-500 ring-2 ring-primary-500/10"
+                              placeholder="Type new category name..."
+                              required
+                              autoFocus
+                            />
+                          </div>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -1155,7 +1233,16 @@ export const InventoryPage: React.FC = () => {
                   {formHasVariants ? (
                     <div className="space-y-4 animate-in slide-in-from-top-2 duration-300">
                       {formVariants.map((variant, index) => (
-                        <div key={index} className="p-5 bg-white dark:bg-dark-surface border border-gray-100 dark:border-gray-800 rounded-2xl shadow-sm space-y-4 group/variant hover:border-primary-200 dark:hover:border-primary-900/50 transition-all">
+                        <div 
+                          key={index} 
+                          onClick={() => setTargetVariantIndex(index)}
+                          onPaste={handlePaste}
+                          className={`p-5 bg-white dark:bg-dark-surface border rounded-2xl shadow-sm space-y-4 group/variant transition-all cursor-pointer outline-none ${
+                            targetVariantIndex === index 
+                              ? 'border-primary-500 ring-2 ring-primary-500/20 bg-primary-50/5 dark:bg-primary-900/5' 
+                              : 'border-gray-100 dark:border-gray-800 hover:border-primary-200 dark:hover:border-primary-900/50'
+                          }`}
+                        >
                           <div className="flex items-center justify-between">
                             <span className="text-[10px] font-black text-primary-500 uppercase tracking-widest">Variant #{index + 1}</span>
                             <button 
@@ -1442,33 +1529,59 @@ export const InventoryPage: React.FC = () => {
               </button>
             </div>
             
-            <div className="p-6 max-h-[60vh] overflow-y-auto scrollbar-thin">
-              <div className="space-y-3">
-                {categories.map(cat => (
-                  <div key={cat.id} className="flex items-center justify-between p-3 bg-gray-50 dark:bg-dark-surfaceAlt rounded-xl border dark:border-gray-800">
-                    {editingCategoryId === cat.id ? (
-                      <div className="flex gap-2 flex-1">
-                        <input 
-                          type="text" 
-                          value={editCategoryName} 
-                          onChange={e => setEditCategoryName(e.target.value)}
-                          className="input py-1.5 flex-1 text-sm"
-                          autoFocus
-                        />
-                        <button onClick={() => handleUpdateCategory(cat.id)} className="p-1.5 bg-green-500 text-white rounded-lg"><Check size={16} /></button>
-                        <button onClick={() => setEditingCategoryId(null)} className="p-1.5 bg-gray-200 text-gray-600 rounded-lg"><X size={16} /></button>
-                      </div>
-                    ) : (
-                      <>
-                        <span className="font-bold text-gray-700 dark:text-gray-300">{cat.name}</span>
-                        <div className="flex gap-1">
-                          <button onClick={() => handleEditCategory(cat.id, cat.name)} className="p-2 text-gray-400 hover:text-primary-500"><Edit2 size={16} /></button>
-                          <button onClick={() => handleDeleteCategory(cat.id)} className="p-2 text-gray-400 hover:text-red-500"><Trash2 size={16} /></button>
+            <div className="p-6 space-y-4">
+              {/* Add New Category Input */}
+              <div className="flex gap-2">
+                <input 
+                  type="text" 
+                  placeholder="Type new category name..." 
+                  className="input flex-1 py-2 text-sm !rounded-xl"
+                  value={newCategoryName}
+                  onChange={(e) => setNewCategoryName(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && handleAddCategory()}
+                />
+                <button 
+                  type="button"
+                  onClick={handleAddCategory}
+                  className="p-2 bg-primary-500 text-white rounded-xl hover:bg-primary-600 transition-colors shadow-lg shadow-primary-500/20"
+                >
+                  <Plus size={20} />
+                </button>
+              </div>
+
+              <div className="max-h-[50vh] overflow-y-auto scrollbar-thin space-y-3 pr-1">
+                {categories.length === 0 ? (
+                  <p className="text-center py-10 text-gray-400 text-sm italic">No categories found.</p>
+                ) : (
+                  categories.map(cat => (
+                    <div key={cat.id} className="flex items-center justify-between p-3 bg-gray-50 dark:bg-dark-surfaceAlt rounded-xl border dark:border-gray-800 hover:border-gray-200 dark:hover:border-gray-700 transition-all group">
+                      {editingCategoryId === cat.id ? (
+                        <div className="flex gap-2 flex-1">
+                          <input 
+                            type="text" 
+                            value={editCategoryName} 
+                            onChange={e => setEditCategoryName(e.target.value)}
+                            className="input py-1.5 flex-1 text-sm !rounded-lg"
+                            autoFocus
+                          />
+                          <button onClick={() => handleUpdateCategory(cat.id)} className="p-1.5 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors"><Check size={16} /></button>
+                          <button onClick={() => setEditingCategoryId(null)} className="p-1.5 bg-gray-200 text-gray-600 rounded-lg hover:bg-gray-300 transition-colors"><X size={16} /></button>
                         </div>
-                      </>
-                    )}
-                  </div>
-                ))}
+                      ) : (
+                        <>
+                          <div className="flex flex-col">
+                            <span className="font-bold text-gray-700 dark:text-gray-300">{cat.name}</span>
+                            <span className="text-[8px] text-gray-400 uppercase font-medium">ID: {cat.id}</span>
+                          </div>
+                          <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <button onClick={() => handleEditCategory(cat.id, cat.name)} className="p-2 text-gray-400 hover:text-primary-500 transition-colors"><Edit2 size={16} /></button>
+                            <button onClick={() => handleDeleteCategory(cat.id)} className="p-2 text-gray-400 hover:text-red-500 transition-colors"><Trash2 size={16} /></button>
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  ))
+                )}
               </div>
             </div>
           </div>

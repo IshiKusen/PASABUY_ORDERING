@@ -53,6 +53,9 @@ export const authApi = {
   loginWithGoogle: (userData: any) =>
     apiFetch('/auth/google', { method: 'POST', body: JSON.stringify(userData) }),
 
+  loginWithFacebook: (userData: any) =>
+    apiFetch('/auth/facebook', { method: 'POST', body: JSON.stringify(userData) }),
+
   loginOnly: (email: string) =>
     apiFetch('/auth/login', { method: 'POST', body: JSON.stringify({ email }) }),
 

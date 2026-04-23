@@ -52,11 +52,12 @@ export const AuthModal: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [locatingUser, setLocatingUser] = useState(false);
   const [searching, setSearching] = useState(false);
-  const [authMethod, setAuthMethod] = useState<'google' | 'email' | null>(null);
+  const [authMethod, setAuthMethod] = useState<'google' | 'facebook' | 'email' | null>(null);
   const [emailInput, setEmailInput] = useState('');
   const [mobileError, setMobileError] = useState('');
   const [addressStatus, setAddressStatus] = useState('');
   const [googleData, setGoogleData] = useState<{ sub: string; name: string; email: string; picture: string } | null>(null);
+  const [facebookData, setFacebookData] = useState<{ id: string; name: string; email: string; picture: string } | null>(null);
   
   const [formData, setFormData] = useState({
     fullName: '',
@@ -67,6 +68,29 @@ export const AuthModal: React.FC = () => {
   });
 
   const [mapCenter, setMapCenter] = useState<LatLngExpression>(defaultCenter);
+
+  // Load Facebook SDK
+  useEffect(() => {
+    if (!import.meta.env.VITE_FACEBOOK_APP_ID) return;
+    
+    (window as any).fbAsyncInit = function() {
+      (window as any).FB.init({
+        appId      : import.meta.env.VITE_FACEBOOK_APP_ID,
+        cookie     : true,
+        xfbml      : true,
+        version    : 'v21.0'
+      });
+    };
+
+    const loadSdk = (d: Document, s: string, id: string) => {
+      var js, fjs = d.getElementsByTagName(s)[0];
+      if (d.getElementById(id)) return;
+      js = d.createElement(s) as any; js.id = id;
+      js.src = "https://connect.facebook.net/en_US/sdk.js";
+      fjs.parentNode?.insertBefore(js, fjs);
+    };
+    loadSdk(document, 'script', 'facebook-jssdk');
+  }, []);
 
   // SEARCH: Text -> Coordinates (using Nominatim Free API)
   const handleAddressSearch = async () => {
@@ -166,6 +190,46 @@ export const AuthModal: React.FC = () => {
     },
   });
 
+  const handleFacebookLogin = () => {
+    if (!(window as any).FB) return;
+    setLoading(true);
+    (window as any).FB.login((response: any) => {
+      if (response.authResponse) {
+        (window as any).FB.api('/me', { fields: 'id,name,email,picture.type(large)' }, async (userInfo: any) => {
+          if (isLoginMode) {
+            try {
+              const loginRes = await authApi.loginOnly(userInfo.email);
+              setToken(loginRes.token);
+              login({ ...loginRes.user, id: String(loginRes.user.id), fullName: loginRes.user.full_name, mobile: loginRes.user.phone });
+              handleClose();
+            } catch (err: any) {
+              if (err.message && err.message.includes('not found')) {
+                alert('Account not found. Please create an account.');
+                setIsLoginMode(false);
+              } else {
+                alert(err.message || 'Login failed.');
+              }
+            }
+          } else {
+            setFacebookData({ 
+              id: userInfo.id, 
+              name: userInfo.name || '', 
+              email: userInfo.email || '', 
+              picture: userInfo.picture?.data?.url || '' 
+            });
+            setEmailInput(userInfo.email || '');
+            setFormData(prev => ({ ...prev, fullName: userInfo.name || '' }));
+            setAuthMethod('facebook');
+            setStep('profile');
+          }
+          setLoading(false);
+        });
+      } else {
+        setLoading(false);
+      }
+    }, { scope: 'email' });
+  };
+
   const handleEmailLogin = async () => {
     if (!emailInput) return;
     setLoading(true);
@@ -193,13 +257,14 @@ export const AuthModal: React.FC = () => {
     try {
       const res = await authApi.loginWithGoogle({
         google_id: authMethod === 'google' ? googleData?.sub : null,
+        facebook_id: authMethod === 'facebook' ? facebookData?.id : null,
         full_name: formData.fullName,
-        email: authMethod === 'google' ? googleData?.email : emailInput,
+        email: (authMethod === 'google' ? googleData?.email : (authMethod === 'facebook' ? facebookData?.email : emailInput)),
         phone: formData.mobile,
         address: formData.address,
         lat: formData.lat,
         lng: formData.lng,
-        avatar_url: googleData?.picture || `https://ui-avatars.com/api/?name=${encodeURIComponent(formData.fullName)}`
+        avatar_url: (authMethod === 'google' ? googleData?.picture : (authMethod === 'facebook' ? facebookData?.picture : `https://ui-avatars.com/api/?name=${encodeURIComponent(formData.fullName)}`))
       });
       setToken(res.token);
       login({ ...res.user, id: String(res.user.id), fullName: res.user.full_name, mobile: res.user.phone });
@@ -251,13 +316,15 @@ export const AuthModal: React.FC = () => {
                 </button>
 
                 <button 
-                  onClick={() => alert('Facebook Login is currently being integrated. Please use Google or Email for now.')} 
+                  onClick={handleFacebookLogin} 
                   disabled={loading} 
                   className="w-full flex items-center justify-center gap-3 bg-[#1877F2] text-white p-4 rounded-xl font-bold hover:bg-[#166fe5] transition-all shadow-md hover:shadow-lg disabled:opacity-50"
                 >
-                  <svg width="20" height="20" fill="currentColor" viewBox="0 0 24 24">
-                    <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/>
-                  </svg>
+                  {loading && authMethod === 'facebook' ? <Loader2 size={20} className="animate-spin" /> : (
+                    <svg width="20" height="20" fill="currentColor" viewBox="0 0 24 24">
+                      <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/>
+                    </svg>
+                  )}
                   {isLoginMode ? 'Sign In with Facebook' : 'Continue with Facebook'}
                 </button>
               </div>

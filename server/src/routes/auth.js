@@ -50,6 +50,46 @@ router.post('/google', async (req, res) => {
 });
 
 /**
+ * POST /api/auth/facebook
+ * Handles account creation or profile synchronization after Facebook Auth
+ */
+router.post('/facebook', async (req, res) => {
+  try {
+    const { facebook_id, email, full_name, avatar_url, phone, address, lat, lng } = req.body;
+
+    if (!email) return res.status(400).json({ error: 'Email is required' });
+
+    const { data: user, error } = await supabase
+      .from('users')
+      .upsert({
+        facebook_id,
+        email,
+        full_name,
+        avatar_url,
+        phone,
+        address,
+        lat,
+        lng
+      }, { onConflict: 'email' })
+      .select()
+      .single();
+
+    if (error) throw error;
+
+    const token = jwt.sign(
+      { id: user.id, email: user.email, role: user.role },
+      process.env.JWT_SECRET,
+      { expiresIn: '7d' }
+    );
+
+    res.json({ token, user });
+  } catch (err) {
+    console.error('Facebook signup/update error:', err);
+    res.status(500).json({ error: 'Failed to sync account.' });
+  }
+});
+
+/**
  * POST /api/auth/login
  * Simple check-and-login for existing users (usually via email)
  */

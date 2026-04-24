@@ -48,7 +48,7 @@ const TileLayerCast = TileLayer as any;
 export const AuthModal: React.FC = () => {
   const { isLoginModalOpen, setLoginModalOpen, login } = useAuthStore();
   const [step, setStep] = useState<'choose' | 'profile'>('choose');
-  const [isLoginMode, setIsLoginMode] = useState(true);
+  const [isLoginMode, setIsLoginMode] = useState(false);
   const [loading, setLoading] = useState(false);
   const [locatingUser, setLocatingUser] = useState(false);
   const [searching, setSearching] = useState(false);

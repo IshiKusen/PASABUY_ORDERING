@@ -760,13 +760,13 @@ export const InventoryPage: React.FC = () => {
               className="flex items-center gap-2 px-4 py-2 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 border border-red-200 dark:border-red-800 rounded-xl font-semibold text-sm hover:bg-red-100 transition-all"
               title="Permanently delete all hidden/inactive products"
             >
-              {/* <Trash2 size={16} />
+              <Trash2 size={16} />
               <span>Clean Up Inactive</span>
             </button>
            <button 
              onClick={() => handleOpenModal()} 
              className="btn-primary flex items-center gap-2 shadow-lg shadow-primary-500/25"
-           > */}
+           >
              <Plus size={20} />
              <span>Add Product</span>
            </button>

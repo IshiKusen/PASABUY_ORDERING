@@ -14,6 +14,7 @@ export const HomePage: React.FC = () => {
   const [featuredProducts, setFeaturedProducts] = useState<Product[]>([]);
   const [config, setConfig] = useState<any>({});
   const [loading, setLoading] = useState(true);
+  const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
   const [selectedProductForVariant, setSelectedProductForVariant] = useState<Product | null>(null);
   const [fullScreenImageUrl, setFullScreenImageUrl] = useState<string | null>(null);
   const addItem = useCartStore((state) => state.addItem);
@@ -37,7 +38,27 @@ export const HomePage: React.FC = () => {
       }
     };
     fetchData();
+
+    const handleBeforeInstallPrompt = (e: any) => {
+      e.preventDefault();
+      setDeferredPrompt(e);
+    };
+
+    window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+    return () => window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
   }, []);
+
+  const handleInstallClick = async () => {
+    if (!deferredPrompt) {
+      alert('To install: Tap the "Share" or "Menu" icon in your browser and select "Add to Home Screen".');
+      return;
+    }
+    deferredPrompt.prompt();
+    const { outcome } = await deferredPrompt.userChoice;
+    if (outcome === 'accepted') {
+      setDeferredPrompt(null);
+    }
+  };
 
   const getTimeRemaining = () => {
     if (!config.cutoff_date) return null;
@@ -143,11 +164,11 @@ export const HomePage: React.FC = () => {
                   <ChevronRight size={20} />
                 </a>
                 <button
-                  onClick={() => isAuthenticated ? (window.location.hash = 'how-it-works') : setLoginModalOpen(true, 'register')}
+                  onClick={handleInstallClick}
                   className="inline-flex items-center justify-center gap-3 bg-transparent border-2 border-[#ec4899] text-[#ec4899] dark:text-[#f472b6] dark:border-[#f472b6] px-8 py-4 rounded-2xl font-bold text-lg hover:bg-[#ec4899]/5 transition-all duration-300 glow-pink"
                 >
                   <Smartphone size={20} />
-                  Register Account
+                  Download App
                 </button>
               </div>
 
@@ -161,12 +182,16 @@ export const HomePage: React.FC = () => {
                 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 lg:pr-8">
                   {[
-                    { step: '01', title: 'Register Account', icon: Smartphone, color: 'bg-blue-50 text-blue-500 dark:bg-blue-900/20' },
+                    { step: '01', title: 'Register Account', icon: Smartphone, color: 'bg-blue-50 text-blue-500 dark:bg-blue-900/20', onClick: () => !isAuthenticated && setLoginModalOpen(true, 'register') },
                     { step: '02', title: 'Browse Products', icon: ShoppingCart, color: 'bg-pink-50 text-pink-500 dark:bg-pink-900/20' },
                     { step: '03', title: 'Place Your Order', icon: CheckCircle, color: 'bg-green-50 text-green-500 dark:bg-green-900/20' },
                     { step: '04', title: 'Wait for Delivery', icon: Truck, color: 'bg-amber-50 text-amber-500 dark:bg-amber-900/20' }
                   ].map((item) => (
-                    <div key={item.step} className="flex items-center gap-3 p-3 bg-white/40 dark:bg-dark-surface/40 backdrop-blur-md rounded-2xl border border-white/50 dark:border-white/5 shadow-sm hover:shadow-md transition-all">
+                    <div 
+                      key={item.step} 
+                      className={`flex items-center gap-3 p-3 bg-white/40 dark:bg-dark-surface/40 backdrop-blur-md rounded-2xl border border-white/50 dark:border-white/5 shadow-sm hover:shadow-md transition-all ${(item as any).onClick ? 'cursor-pointer' : ''}`}
+                      onClick={(item as any).onClick}
+                    >
                       <div className={`w-10 h-10 rounded-xl ${item.color} flex items-center justify-center shrink-0 shadow-inner`}>
                         <item.icon size={18} />
                       </div>

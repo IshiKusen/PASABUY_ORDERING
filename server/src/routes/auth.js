@@ -190,13 +190,21 @@ router.post('/facebook', async (req, res) => {
  */
 router.post('/login', async (req, res) => {
   try {
-    const { email } = req.body;
+    const { email, google_id, facebook_id } = req.body;
     
-    const { data: user, error } = await supabase
-      .from('users')
-      .select('*')
-      .eq('email', email)
-      .single();
+    let query = supabase.from('users').select('*');
+    
+    if (facebook_id) {
+      query = query.eq('facebook_id', facebook_id);
+    } else if (google_id) {
+      query = query.eq('google_id', google_id);
+    } else if (email) {
+      query = query.eq('email', email);
+    } else {
+      return res.status(400).json({ error: 'Login identifier required.' });
+    }
+
+    const { data: user, error } = await query.single();
 
     if (error || !user) {
       return res.status(404).json({ error: 'Account not found. Please sign up.' });

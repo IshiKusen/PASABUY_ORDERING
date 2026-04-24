@@ -170,7 +170,10 @@ export const AuthModal: React.FC = () => {
         
         if (isLoginMode) {
           try {
-            const loginRes = await authApi.loginOnly(userInfo.email);
+            const loginRes = await authApi.loginOnly({ 
+              email: userInfo.email, 
+              google_id: userInfo.sub 
+            });
             setToken(loginRes.token);
             login({ ...loginRes.user, id: String(loginRes.user.id), fullName: loginRes.user.full_name, mobile: loginRes.user.phone });
             handleClose();
@@ -205,7 +208,10 @@ export const AuthModal: React.FC = () => {
         (window as any).FB.api('/me', { fields: 'id,name,email,picture.type(large)' }, async (userInfo: any) => {
           if (isLoginMode) {
             try {
-              const loginRes = await authApi.loginOnly(userInfo.email);
+              const loginRes = await authApi.loginOnly({ 
+                email: userInfo.email, 
+                facebook_id: userInfo.id 
+              });
               setToken(loginRes.token);
               login({ ...loginRes.user, id: String(loginRes.user.id), fullName: loginRes.user.full_name, mobile: loginRes.user.phone });
               handleClose();
@@ -241,7 +247,7 @@ export const AuthModal: React.FC = () => {
     if (!emailInput) return;
     setLoading(true);
     try {
-      const res = await authApi.loginOnly(emailInput);
+      const res = await authApi.loginOnly({ email: emailInput });
       setToken(res.token);
       login({ ...res.user, id: String(res.user.id), fullName: res.user.full_name, mobile: res.user.phone });
       handleClose();

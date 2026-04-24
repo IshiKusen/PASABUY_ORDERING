@@ -101,6 +101,7 @@ export const InventoryPage: React.FC = () => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
   const [jpyToPhpRate, setJpyToPhpRate] = useState<number>(0.38);
+  const [defaultStock, setDefaultStock] = useState<string>("1000");
 
   // Load data
   useEffect(() => {
@@ -120,6 +121,9 @@ export const InventoryPage: React.FC = () => {
       
       if (configData.config && configData.config.jpy_to_php_rate) {
         setJpyToPhpRate(Number(configData.config.jpy_to_php_rate));
+      }
+      if (configData.config && configData.config.default_stock_count) {
+        setDefaultStock(configData.config.default_stock_count);
       }
     } catch (err) {
       console.error('Load error:', err);
@@ -156,7 +160,7 @@ export const InventoryPage: React.FC = () => {
       setFormPricePhp("");
       setFormPriceJpy("");
       setFormCategory(categories.length > 0 ? String(categories[0].id) : "");
-      setFormStock("");
+      setFormStock(defaultStock);
       setFormImagePreview("");
       setFormImageFile(null);
       setFormBarcode("");
@@ -627,7 +631,7 @@ export const InventoryPage: React.FC = () => {
       variant_name: "",
       price_php: formPricePhp || "",
       price_jpy: formPriceJpy || "",
-      stock: "0",
+      stock: defaultStock,
       image_file: null,
       image_preview: ""
     }]);
@@ -897,12 +901,23 @@ export const InventoryPage: React.FC = () => {
                       </div>
                     </td>
                     <td className="px-6 py-4">
-                      <div className="flex items-center gap-2">
-                        <span className={`w-2 h-2 rounded-full ${Number(product.stock) > 10 ? 'bg-green-500' : Number(product.stock) > 0 ? 'bg-yellow-500' : 'bg-red-500'}`} />
-                        <span className={`font-bold ${Number(product.stock) === 0 ? 'text-red-500' : 'text-gray-700 dark:text-gray-300'}`}>
-                          {product.stock}
-                        </span>
-                      </div>
+                      {(() => {
+                        const displayStock = product.has_variants && product.variants && product.variants.length > 0
+                          ? Number(product.variants[0].stock)
+                          : Number(product.stock);
+                        
+                        return (
+                          <div className="flex items-center gap-2">
+                            <span className={`w-2 h-2 rounded-full ${displayStock > 10 ? 'bg-green-500' : displayStock > 0 ? 'bg-yellow-500' : 'bg-red-500'}`} />
+                            <span className={`font-bold ${displayStock === 0 ? 'text-red-500' : 'text-gray-700 dark:text-gray-300'}`}>
+                              {displayStock}
+                            </span>
+                            {product.has_variants && product.variants && product.variants.length > 0 && (
+                              <span className="text-[10px] text-gray-400 font-medium">(Base)</span>
+                            )}
+                          </div>
+                        );
+                      })()}
                     </td>
                     <td className="px-6 py-4 text-right">
                       <div className="flex items-center justify-end gap-2">

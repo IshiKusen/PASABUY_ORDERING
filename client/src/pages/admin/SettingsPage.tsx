@@ -14,7 +14,8 @@ export const SettingsPage: React.FC = () => {
     is_ordering_open: '1',
     announcement_text: '',
     whatsapp_link: '',
-    messenger_link: ''
+    messenger_link: '',
+    default_stock_count: '1000'
   });
   const [batchHistory, setBatchHistory] = useState<any[]>([]);
   const [syncingRate, setSyncingRate] = useState(false);
@@ -200,6 +201,22 @@ export const SettingsPage: React.FC = () => {
                 />
               </div>
               <p className="text-[10px] text-gray-400 mt-1">Approximate range when items arrive in PH.</p>
+            </div>
+
+            <div className="md:col-span-2">
+              <label className="block text-sm font-bold text-gray-500 uppercase tracking-wider mb-2 flex items-center gap-2">
+                 <Package size={16} /> Default Stock for New Products
+              </label>
+              <div className="relative">
+                <input 
+                  type="number" 
+                  className="input" 
+                  value={config.default_stock_count}
+                  onChange={(e) => setConfig({...config, default_stock_count: e.target.value})}
+                  placeholder="1000"
+                />
+              </div>
+              <p className="text-[10px] text-gray-400 mt-1">This value will be pre-filled when creating new products or variations.</p>
             </div>
 
             <div className="md:col-span-2">

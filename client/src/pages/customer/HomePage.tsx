@@ -14,7 +14,6 @@ export const HomePage: React.FC = () => {
   const [featuredProducts, setFeaturedProducts] = useState<Product[]>([]);
   const [config, setConfig] = useState<any>({});
   const [loading, setLoading] = useState(true);
-  const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
   const [selectedProductForVariant, setSelectedProductForVariant] = useState<Product | null>(null);
   const [fullScreenImageUrl, setFullScreenImageUrl] = useState<string | null>(null);
   const addItem = useCartStore((state) => state.addItem);

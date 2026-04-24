@@ -54,11 +54,17 @@ router.delete('/:id', async (req, res) => {
       return res.status(400).json({ error: 'Cannot delete self.' });
     }
 
+    // 1. Delete all orders belonging to this user first (cleanup)
+    await supabase.from('orders').delete().eq('user_id', id);
+
+    // 2. Now delete the user
     const { error } = await supabase.from('users').delete().eq('id', id);
+    
     if (error) throw error;
-    res.json({ message: 'Deleted' });
+    res.json({ message: 'User and their order history deleted successfully.' });
   } catch (err) {
-    res.status(500).json({ error: 'Failed' });
+    console.error('Delete user error:', err);
+    res.status(500).json({ error: 'Failed to delete user. They might have active records.' });
   }
 });
 

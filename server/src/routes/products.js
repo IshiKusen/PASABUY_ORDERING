@@ -375,40 +375,63 @@ router.patch('/:id', authenticate, requireAdmin, upload.any(), async (req, res) 
   }
 });
 
-// DELETE /api/products/:id - Smart Delete
+// DELETE /api/products/:id - Hard Delete with cascade cleanup
 router.delete('/:id', authenticate, requireAdmin, async (req, res) => {
   const productId = req.params.id;
   try {
-    // 1. Attempt Hard Delete (if no orders exist)
-    // First, delete variants (they CASCADE anyway, but good to be explicit)
+    // 1. Nullify product references in order_items to remove FK constraint
+    await supabase
+      .from('order_items')
+      .update({ product_id: null })
+      .eq('product_id', productId);
+
+    // 2. Delete all variants
     await supabase.from('product_variants').delete().eq('product_id', productId);
-    
+
+    // 3. Hard delete the product
     const { error: deleteError } = await supabase
       .from('products')
       .delete()
       .eq('id', productId);
 
-    if (deleteError) {
-      // Check if it's a foreign key constraint error (PostgreSQL error code 23503)
-      if (deleteError.code === '23503') {
-        console.log(`Product ${productId} has dependent orders. Performing soft delete instead.`);
-        
-        // 2. Fallback: Soft Delete
-        const { error: softDeleteError } = await supabase
-          .from('products')
-          .update({ is_active: false })
-          .eq('id', productId);
-
-        if (softDeleteError) throw softDeleteError;
-        return res.json({ message: 'Product hidden (has existing orders)' });
-      }
-      throw deleteError;
-    }
+    if (deleteError) throw deleteError;
 
     res.json({ message: 'Product permanently deleted' });
   } catch (err) {
-    console.error('Delete error:', err);
-    res.status(500).json({ error: 'Failed to remove product' });
+    console.error('Delete product error:', err);
+    res.status(500).json({ error: 'Failed to delete product.' });
+  }
+});
+
+// DELETE /api/products/cleanup/inactive - Remove all is_active=false products
+router.delete('/cleanup/inactive', authenticate, requireAdmin, async (req, res) => {
+  try {
+    // Get all inactive products
+    const { data: inactiveProducts } = await supabase
+      .from('products')
+      .select('id')
+      .eq('is_active', false);
+
+    if (!inactiveProducts || inactiveProducts.length === 0) {
+      return res.json({ message: 'No inactive products found.', deleted: 0 });
+    }
+
+    const ids = inactiveProducts.map(p => p.id);
+
+    // Nullify references in order_items
+    await supabase.from('order_items').update({ product_id: null }).in('product_id', ids);
+
+    // Delete variants
+    await supabase.from('product_variants').delete().in('product_id', ids);
+
+    // Delete the products
+    const { error } = await supabase.from('products').delete().in('id', ids);
+    if (error) throw error;
+
+    res.json({ message: `Cleaned up ${ids.length} inactive product(s).`, deleted: ids.length });
+  } catch (err) {
+    console.error('Cleanup inactive products error:', err);
+    res.status(500).json({ error: 'Failed to clean up inactive products.' });
   }
 });
 

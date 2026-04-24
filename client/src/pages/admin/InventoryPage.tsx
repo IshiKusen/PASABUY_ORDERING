@@ -174,12 +174,24 @@ export const InventoryPage: React.FC = () => {
   };
 
   const handleDelete = async (product: Product) => {
-    if (window.confirm(`Are you sure you want to delete "${product.name}"?`)) {
+    if (window.confirm(`Are you sure you want to delete "${product.name}"? This cannot be undone.`)) {
       try {
         await productsApi.delete(product.id);
         await loadData();
       } catch (err: any) {
         alert(err.message);
+      }
+    }
+  };
+
+  const handleCleanupInactive = async () => {
+    if (window.confirm('This will permanently delete ALL hidden/inactive products from the database. Continue?')) {
+      try {
+        const res = await productsApi.cleanupInactive();
+        alert(res.message);
+        await loadData();
+      } catch (err: any) {
+        alert(err.message || 'Cleanup failed.');
       }
     }
   };
@@ -739,6 +751,14 @@ export const InventoryPage: React.FC = () => {
              <Settings size={18} className="group-hover:rotate-90 transition-transform duration-500" />
              <span>Categories</span>
            </button>
+           <button
+              onClick={handleCleanupInactive}
+              className="flex items-center gap-2 px-4 py-2 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 border border-red-200 dark:border-red-800 rounded-xl font-semibold text-sm hover:bg-red-100 transition-all"
+              title="Permanently delete all hidden/inactive products"
+            >
+              <Trash2 size={16} />
+              <span>Clean Up Inactive</span>
+            </button>
            <button 
              onClick={() => handleOpenModal()} 
              className="btn-primary flex items-center gap-2 shadow-lg shadow-primary-500/25"

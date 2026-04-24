@@ -266,7 +266,7 @@ export const AuthModal: React.FC = () => {
         google_id: authMethod === 'google' ? googleData?.sub : null,
         facebook_id: authMethod === 'facebook' ? facebookData?.id : null,
         full_name: formData.fullName,
-        email: (authMethod === 'google' ? googleData?.email : (authMethod === 'facebook' ? facebookData?.email : emailInput)),
+        email: emailInput,
         phone: formData.mobile,
         address: formData.address,
         lat: formData.lat,
@@ -364,6 +364,13 @@ export const AuthModal: React.FC = () => {
             </div>
           ) : (
             <form onSubmit={handleSubmit} className="space-y-4">
+              {!emailInput && (
+                <div>
+                  <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider ml-1">Email Address</label>
+                  <input type="email" required value={emailInput} onChange={(e) => setEmailInput(e.target.value)} className="input mt-1" placeholder="your@email.com" />
+                  <p className="text-[9px] text-orange-500 mt-1 italic font-medium">Facebook didn't provide an email. Please enter one manually.</p>
+                </div>
+              )}
               <div>
                 <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider ml-1">Full Name</label>
                 <input type="text" required value={formData.fullName} onChange={(e) => setFormData({...formData, fullName: e.target.value})} className="input mt-1" placeholder="Juan Dela Cruz" />

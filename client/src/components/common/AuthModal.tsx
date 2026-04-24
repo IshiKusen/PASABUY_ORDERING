@@ -234,7 +234,7 @@ export const AuthModal: React.FC = () => {
       } else {
         setLoading(false);
       }
-    }, { scope: 'email' });
+    }, { config_id: '927750303584958' });
   };
 
   const handleEmailLogin = async () => {

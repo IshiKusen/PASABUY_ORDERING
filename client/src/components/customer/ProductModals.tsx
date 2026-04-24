@@ -34,11 +34,13 @@ export const VariantSelectionModal = ({
   product, 
   onClose, 
   onAdd,
+  onBuyNow,
   onImageClick
 }: { 
   product: Product, 
   onClose: () => void, 
   onAdd: (variant: Variant) => void,
+  onBuyNow: (variant: Variant) => void,
   onImageClick: (url: string) => void
 }) => {
   const [selectedVariant, setSelectedVariant] = useState<Variant | null>(null);
@@ -97,13 +99,23 @@ export const VariantSelectionModal = ({
               </span>
             </div>
 
-            <button
-              disabled={!selectedVariant || Number(selectedVariant.stock) <= 0}
-              onClick={() => selectedVariant && onAdd(selectedVariant)}
-              className="w-full py-4 bg-[#d62b70] text-white rounded-2xl font-black text-lg shadow-lg shadow-pink-200/50 dark:shadow-pink-900/30 hover:-translate-y-1 active:translate-y-0 transition-all disabled:opacity-50 disabled:translate-y-0 disabled:shadow-none"
-            >
-              {selectedVariant && Number(selectedVariant.stock) <= 0 ? 'Out of Stock' : 'Add to Bag'}
-            </button>
+            <div className="grid grid-cols-2 gap-3">
+              <button
+                disabled={!selectedVariant || Number(selectedVariant.stock) <= 0}
+                onClick={() => selectedVariant && onAdd(selectedVariant)}
+                className="py-4 bg-[#fff0f5] text-[#d62b70] border-2 border-[#d62b70] rounded-2xl font-black text-sm shadow-sm hover:bg-[#ffe4ee] transition-all disabled:opacity-50"
+              >
+                {selectedVariant && Number(selectedVariant.stock) <= 0 ? 'Out of Stock' : 'Add to Cart'}
+              </button>
+
+              <button
+                disabled={!selectedVariant || Number(selectedVariant.stock) <= 0}
+                onClick={() => selectedVariant && onBuyNow(selectedVariant)}
+                className="py-4 bg-[#d62b70] text-white rounded-2xl font-black text-sm shadow-lg shadow-pink-200/50 dark:shadow-pink-900/30 hover:-translate-y-1 active:translate-y-0 transition-all disabled:opacity-50 disabled:translate-y-0 disabled:shadow-none"
+              >
+                Buy It Now
+              </button>
+            </div>
           </div>
         </div>
       </div>

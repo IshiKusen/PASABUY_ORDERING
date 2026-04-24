@@ -8,8 +8,10 @@ export interface CartItem extends Product {
 
 interface CartState {
   items: CartItem[];
+  directPurchaseItem: CartItem | null;
   isCartOpen: boolean;
   setCartOpen: (isOpen: boolean) => void;
+  setDirectPurchase: (item: CartItem | null) => void;
   addItem: (product: Product, quantity?: number) => void;
   removeItem: (productId: string, variantId?: number) => void;
   updateQuantity: (productId: string, variantId: number | undefined, quantity: number) => void;
@@ -22,8 +24,10 @@ export const useCartStore = create<CartState>()(
   persist(
     (set, get) => ({
       items: [],
+      directPurchaseItem: null,
       isCartOpen: false,
       setCartOpen: (isOpen) => set({ isCartOpen: isOpen }),
+      setDirectPurchase: (item) => set({ directPurchaseItem: item }),
       addItem: (product, quantity = 1) => {
         const items = get().items;
         const existingItem = items.find((item) => 

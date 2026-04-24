@@ -9,7 +9,17 @@ import { Search, User, UserPlus } from 'lucide-react';
 
 
 export const CartDrawer: React.FC = () => {
-  const { isCartOpen, setCartOpen, items, removeItem, updateQuantity, getTotalPrice, clearCart } = useCartStore();
+  const { 
+    isCartOpen, 
+    setCartOpen, 
+    items, 
+    directPurchaseItem, 
+    setDirectPurchase,
+    removeItem, 
+    updateQuantity, 
+    getTotalPrice, 
+    clearCart 
+  } = useCartStore();
   const { isAuthenticated, user, setLoginModalOpen } = useAuthStore();
 
   const [isPlacingOrder, setIsPlacingOrder] = React.useState(false);
@@ -78,7 +88,10 @@ export const CartDrawer: React.FC = () => {
 
     try {
       setIsPlacingOrder(true);
-      const orderData = items.map(item => ({
+      
+      const purchaseItems = directPurchaseItem ? [directPurchaseItem] : items;
+
+      const orderData = purchaseItems.map(item => ({
         product_id: Number(item.id),
         variant_id: item.variantId,
         quantity: item.quantity
@@ -99,7 +112,11 @@ export const CartDrawer: React.FC = () => {
       const res = await ordersApi.create(orderData, customer_details);
       alert(`Order placed successfully! Order Code: ${res.order_code}`);
       
-      clearCart();
+      if (directPurchaseItem) {
+        setDirectPurchase(null);
+      } else {
+        clearCart();
+      }
       setCartOpen(false);
       // Optional: Redirect to orders page
       window.location.href = '/orders';
@@ -116,17 +133,32 @@ export const CartDrawer: React.FC = () => {
     <>
       <div 
         className="fixed inset-0 bg-black/40 backdrop-blur-sm z-[100] animate-fade-in transition-opacity"
-        onClick={() => setCartOpen(false)}
+        onClick={() => {
+          setCartOpen(false);
+          if (directPurchaseItem) setDirectPurchase(null);
+        }}
       />
       
       <div className="fixed top-0 right-0 h-full w-full max-w-md bg-white dark:bg-dark-surface shadow-2xl z-[101] flex flex-col transform transition-transform duration-300 ease-in-out translate-x-0">
         <div className="flex justify-between items-center p-6 border-b border-gray-100 dark:border-gray-800">
           <h2 className="text-xl font-bold flex items-center gap-2 dark:text-white">
-            <ShoppingBag size={24} className="text-primary-500" />
-            Your Cart
+            {directPurchaseItem ? (
+              <>
+                <ShoppingBag size={24} className="text-primary-500" />
+                Buy It Now
+              </>
+            ) : (
+              <>
+                <ShoppingCart size={24} className="text-primary-500" />
+                Your Cart
+              </>
+            )}
           </h2>
           <button 
-            onClick={() => setCartOpen(false)}
+            onClick={() => {
+              setCartOpen(false);
+              if (directPurchaseItem) setDirectPurchase(null);
+            }}
             className="p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-full transition-colors"
           >
             <X size={20} />
@@ -134,7 +166,7 @@ export const CartDrawer: React.FC = () => {
         </div>
 
         <div className="flex-1 overflow-y-auto p-6 space-y-6 custom-scrollbar">
-          {items.length === 0 ? (
+          {(directPurchaseItem ? [directPurchaseItem] : items).length === 0 ? (
             <div className="h-full flex flex-col items-center justify-center text-gray-500 dark:text-gray-400 space-y-4">
               <div className="w-24 h-24 bg-gray-100 dark:bg-gray-800 rounded-full flex items-center justify-center">
                 <ShoppingCart size={48} className="text-gray-300 dark:text-gray-600" />
@@ -148,7 +180,7 @@ export const CartDrawer: React.FC = () => {
               </button>
             </div>
           ) : (
-            items.map((item) => (
+            (directPurchaseItem ? [directPurchaseItem] : items).map((item) => (
               <div key={`${item.id}-${item.variantId}`} className="flex gap-4 bg-gray-50 dark:bg-dark-surfaceAlt p-3 rounded-2xl border border-gray-100 dark:border-gray-800">
                 <div className="w-20 h-20 bg-white dark:bg-dark-surface rounded-xl overflow-hidden flex-shrink-0 shadow-sm">
                   <img 
@@ -170,18 +202,26 @@ export const CartDrawer: React.FC = () => {
                         </p>
                       )}
                     </div>
-                    <button 
-                      onClick={() => removeItem(item.id, item.variantId)}
-                      className="text-gray-400 hover:text-red-500 p-1 transition-colors"
-                    >
-                      <Trash2 size={16} />
-                    </button>
+                    {!directPurchaseItem && (
+                      <button 
+                        onClick={() => removeItem(item.id, item.variantId)}
+                        className="text-gray-400 hover:text-red-500 p-1 transition-colors"
+                      >
+                        <Trash2 size={16} />
+                      </button>
+                    )}
                   </div>
                   <div className="flex justify-between items-center mt-2">
                     <p className="font-bold text-primary-600 dark:text-primary-400">₱{item.pricePhp}</p>
                     <div className="flex items-center gap-3 bg-white dark:bg-dark-surface rounded-lg px-2 py-1 shadow-sm border border-gray-200 dark:border-gray-700">
                       <button 
-                        onClick={() => updateQuantity(item.id, item.variantId, Math.max(1, item.quantity - 1))}
+                        onClick={() => {
+                          if (directPurchaseItem) {
+                            setDirectPurchase({...directPurchaseItem, quantity: Math.max(1, directPurchaseItem.quantity - 1)});
+                          } else {
+                            updateQuantity(item.id, item.variantId, Math.max(1, item.quantity - 1));
+                          }
+                        }}
                         className="text-gray-500 hover:text-primary-500 disabled:opacity-50"
                         disabled={item.quantity <= 1}
                       >
@@ -189,7 +229,13 @@ export const CartDrawer: React.FC = () => {
                       </button>
                       <span className="text-sm font-medium w-4 text-center dark:text-white">{item.quantity}</span>
                       <button 
-                        onClick={() => updateQuantity(item.id, item.variantId, Math.min(item.stock, item.quantity + 1))}
+                        onClick={() => {
+                          if (directPurchaseItem) {
+                            setDirectPurchase({...directPurchaseItem, quantity: Math.min(item.stock, directPurchaseItem.quantity + 1)});
+                          } else {
+                            updateQuantity(item.id, item.variantId, Math.min(item.stock, item.quantity + 1));
+                          }
+                        }}
                         className="text-gray-500 hover:text-primary-500 disabled:opacity-50"
                         disabled={item.quantity >= item.stock}
                       >
@@ -208,7 +254,7 @@ export const CartDrawer: React.FC = () => {
             <div className="space-y-3 mb-6 font-medium text-sm">
               <div className="flex justify-between text-gray-600 dark:text-gray-400">
                 <span>Subtotal</span>
-                <span>₱{getTotalPrice().toLocaleString()}</span>
+                <span>₱{(directPurchaseItem ? (directPurchaseItem.pricePhp * directPurchaseItem.quantity) : getTotalPrice()).toLocaleString()}</span>
               </div>
               <div className="flex justify-between text-gray-600 dark:text-gray-400">
                 <span>Shipping Fee</span>
@@ -216,7 +262,7 @@ export const CartDrawer: React.FC = () => {
               </div>
               <div className="pt-3 border-t border-gray-200 dark:border-gray-700 flex justify-between text-lg font-bold text-gray-800 dark:text-white">
                 <span>Total</span>
-                <span className="text-primary-600 dark:text-primary-400">₱{getTotalPrice().toLocaleString()}</span>
+                <span className="text-primary-600 dark:text-primary-400">₱{(directPurchaseItem ? (directPurchaseItem.pricePhp * directPurchaseItem.quantity) : getTotalPrice()).toLocaleString()}</span>
               </div>
             </div>
 
@@ -356,7 +402,7 @@ export const CartDrawer: React.FC = () => {
               disabled={isPlacingOrder}
               className="w-full btn-primary py-4 text-lg shadow-lg shadow-primary-500/25 disabled:opacity-50"
             >
-              {isPlacingOrder ? 'Placing Order...' : 'Checkout All Items'}
+              {isPlacingOrder ? 'Placing Order...' : (directPurchaseItem ? 'Confirm Order' : 'Checkout All Items')}
             </button>
           </div>
         )}

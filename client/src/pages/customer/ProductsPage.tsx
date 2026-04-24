@@ -28,6 +28,8 @@ export const ProductsPage = () => {
   const [fullScreenImageUrl, setFullScreenImageUrl] = useState<string | null>(null);
   
   const addItem = useCartStore((state) => state.addItem);
+  const setDirectPurchase = useCartStore((state) => state.setDirectPurchase);
+  const setCartOpen = useCartStore((state) => state.setCartOpen);
 
   useEffect(() => {
     fetchData();
@@ -187,41 +189,65 @@ export const ProductsPage = () => {
                      )}
                    </div>
                    
-                   <div className="flex items-center justify-between mt-auto">
-                     <div className="flex flex-col">
-                       <span className="text-base md:text-xl font-bold text-[#d62b70]">
-                         {product.has_variants && Number(product.min_price) !== Number(product.max_price)
-                           ? `₱${Number(product.min_price).toLocaleString()} - ${Number(product.max_price).toLocaleString()}`
-                           : `₱${Number(product.min_price || product.price_php).toLocaleString()}`
-                         }
-                       </span>
-                       {product.has_variants && (
-                         <span className="text-[9px] font-black uppercase text-gray-400 tracking-tighter mt-0.5">Click to select options</span>
-                       )}
-                     </div>
-                     
-                     <button
-                       onClick={(e) => {
-                         e.stopPropagation(); // Prevent card click
-                         if (product.has_variants) {
-                           setSelectedProductForVariant(product);
-                         } else {
-                           addItem({
-                             id: String(product.id),
-                             name: product.name,
-                             pricePhp: Number(product.price_php),
-                             imageUrl: product.image_path,
-                             category: product.category_name,
-                             description: product.description,
-                             stock: Number(product.stock)
-                           });
-                         }
-                       }}
-                       className="w-9 h-9 md:w-10 md:h-10 rounded-full bg-gray-50 dark:bg-dark-surfaceAlt hover:bg-[#d62b70] hover:text-white text-gray-400 flex items-center justify-center transition-all duration-300"
-                     >
-                       {product.has_variants ? <Filter className="w-4 h-4" /> : <ShoppingCart className="w-4 h-4" />}
-                     </button>
-                   </div>
+                   <div className="mt-auto space-y-3">
+                      <div className="flex items-center justify-between">
+                        <span className="text-base md:text-xl font-bold text-[#d62b70]">
+                          {product.has_variants && Number(product.min_price) !== Number(product.max_price)
+                            ? `₱${Number(product.min_price).toLocaleString()} - ${Number(product.max_price).toLocaleString()}`
+                            : `₱${Number(product.min_price || product.price_php).toLocaleString()}`
+                          }
+                        </span>
+                      </div>
+                      
+                      <div className="grid grid-cols-2 gap-2">
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (product.has_variants) {
+                              setSelectedProductForVariant(product);
+                            } else {
+                              addItem({
+                                id: String(product.id),
+                                name: product.name,
+                                pricePhp: Number(product.price_php),
+                                imageUrl: product.image_path,
+                                category: product.category_name,
+                                description: product.description,
+                                stock: Number(product.stock)
+                              });
+                            }
+                          }}
+                          className="flex items-center justify-center gap-1.5 py-2.5 rounded-xl bg-[#fff0f5] text-[#d62b70] text-[11px] font-bold hover:bg-[#ffe4ee] transition-all border border-[#d62b70]/20"
+                        >
+                          <ShoppingCart size={14} />
+                          Add to Cart
+                        </button>
+                        
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (product.has_variants) {
+                              setSelectedProductForVariant(product);
+                            } else {
+                              setDirectPurchase({
+                                id: String(product.id),
+                                name: product.name,
+                                pricePhp: Number(product.price_php),
+                                imageUrl: product.image_path,
+                                category: product.category_name,
+                                description: product.description,
+                                stock: Number(product.stock),
+                                quantity: 1
+                              });
+                              setCartOpen(true);
+                            }
+                          }}
+                          className="flex items-center justify-center gap-1.5 py-2.5 rounded-xl bg-[#d62b70] text-white text-[11px] font-bold hover:bg-[#c02663] transition-all shadow-sm"
+                        >
+                          Buy It Now
+                        </button>
+                      </div>
+                    </div>
                  </div>
 
               </div>
@@ -249,6 +275,22 @@ export const ProductsPage = () => {
               variantName: variant.variant_name
             });
             setSelectedProductForVariant(null);
+          }}
+          onBuyNow={(variant) => {
+            setDirectPurchase({
+              id: String(selectedProductForVariant.id),
+              name: selectedProductForVariant.name,
+              pricePhp: Number(variant.price_php),
+              imageUrl: variant.image_path || selectedProductForVariant.image_path,
+              category: selectedProductForVariant.category_name,
+              description: selectedProductForVariant.description,
+              stock: Number(variant.stock),
+              variantId: variant.id,
+              variantName: variant.variant_name,
+              quantity: 1
+            });
+            setSelectedProductForVariant(null);
+            setCartOpen(true);
           }}
         />
       )}

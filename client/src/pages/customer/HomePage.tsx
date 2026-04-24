@@ -5,7 +5,9 @@ import { productsApi, configApi } from '../../utils/api';
 import { getImageUrl } from '../../utils/image';
 import { useCartStore } from '../../store/cartStore';
 import { VariantSelectionModal, FullScreenImageModal, type Product } from '../../components/customer/ProductModals';
+import { ProductCard } from '../../components/customer/ProductCard';
 import logo from '../../../Images/PasabuyLogo.png';
+import { useAuthStore } from '../../store/authStore';
 
 
 
@@ -19,6 +21,7 @@ export const HomePage: React.FC = () => {
   const addItem = useCartStore((state) => state.addItem);
   const setDirectPurchase = useCartStore((state) => state.setDirectPurchase);
   const setCartOpen = useCartStore((state) => state.setCartOpen);
+  const { setLoginModalOpen, isAuthenticated } = useAuthStore();
 
   useEffect(() => {
     const fetchData = async () => {
@@ -162,11 +165,11 @@ export const HomePage: React.FC = () => {
                   <ChevronRight size={20} />
                 </a>
                 <button
-                  onClick={handleInstallClick}
+                  onClick={() => isAuthenticated ? (window.location.hash = 'how-it-works') : setLoginModalOpen(true, 'register')}
                   className="inline-flex items-center justify-center gap-3 bg-transparent border-2 border-[#ec4899] text-[#ec4899] dark:text-[#f472b6] dark:border-[#f472b6] px-8 py-4 rounded-2xl font-bold text-lg hover:bg-[#ec4899]/5 transition-all duration-300 glow-pink"
                 >
                   <Smartphone size={20} />
-                  Download App
+                  Register Account
                 </button>
               </div>
 
@@ -180,7 +183,7 @@ export const HomePage: React.FC = () => {
                 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 lg:pr-8">
                   {[
-                    { step: '01', title: 'Download the App', icon: Smartphone, color: 'bg-blue-50 text-blue-500 dark:bg-blue-900/20' },
+                    { step: '01', title: 'Register Account', icon: Smartphone, color: 'bg-blue-50 text-blue-500 dark:bg-blue-900/20' },
                     { step: '02', title: 'Browse Products', icon: ShoppingCart, color: 'bg-pink-50 text-pink-500 dark:bg-pink-900/20' },
                     { step: '03', title: 'Place Your Order', icon: CheckCircle, color: 'bg-green-50 text-green-500 dark:bg-green-900/20' },
                     { step: '04', title: 'Wait for Delivery', icon: Truck, color: 'bg-amber-50 text-amber-500 dark:bg-amber-900/20' }
@@ -241,7 +244,7 @@ export const HomePage: React.FC = () => {
                       to="/products"
                       className="block w-full py-4 bg-gradient-to-r from-[#d62b70] to-[#e83e8c] text-white text-center rounded-2xl font-bold shadow-lg shadow-pink-200/50 dark:shadow-pink-900/30 hover:-translate-y-0.5 transition-all"
                     >
-                      Order Now
+                      Click to order
                     </Link>
                   </div>
                 </div>
@@ -319,13 +322,6 @@ export const HomePage: React.FC = () => {
                 Featured Products
               </h2>
             </div>
-            <Link
-              to="/products"
-              className="inline-flex items-center gap-2 text-primary-600 dark:text-primary-400 font-bold hover:gap-3 transition-all"
-            >
-              View All Products
-              <ChevronRight size={18} />
-            </Link>
           </div>
 
           {loading ? (
@@ -337,107 +333,13 @@ export const HomePage: React.FC = () => {
           ) : (
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 md:gap-6">
               {featuredProducts.map((product) => (
-                <div 
-                  key={product.id} 
-                  className="group bg-white dark:bg-dark-surface rounded-[32px] overflow-hidden border border-gray-100 dark:border-gray-800 hover:shadow-2xl hover:shadow-pink-100/50 dark:hover:shadow-none hover:-translate-y-2 transition-all duration-500 flex flex-col h-full"
-                >
-                  <div 
-                    className="relative aspect-square overflow-hidden cursor-zoom-in"
-                    onClick={() => setFullScreenImageUrl(getImageUrl(product.image_path))}
-                  >
-                    <img
-                      src={getImageUrl(product.image_path)}
-                      alt={product.name}
-                      className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700"
-                      loading="lazy"
-                    />
-                    <div className="absolute top-4 left-4">
-                      <span className="bg-white/90 dark:bg-dark-bg/90 backdrop-blur-md text-primary-600 dark:text-primary-400 text-[10px] font-black px-3 py-1.5 rounded-full uppercase tracking-widest shadow-sm">
-                        {product.category_name}
-                      </span>
-                    </div>
-                  </div>
-
-                  <div 
-                    className={`p-6 flex flex-col flex-grow ${product.has_variants ? 'cursor-pointer hover:bg-gray-50/50 dark:hover:bg-gray-800/20' : ''}`}
-                    onClick={() => {
-                      if (product.has_variants) {
-                        setSelectedProductForVariant(product);
-                      }
-                    }}
-                  >
-                    <div className="mb-4 flex-grow">
-                      <h3 className="font-bold text-gray-900 dark:text-white group-hover:text-primary-500 transition-colors line-clamp-2 leading-snug">
-                        {product.name}
-                      </h3>
-                      {product.description && (
-                        <p className="text-primary-600 dark:text-primary-400 text-[10px] font-bold uppercase tracking-wider mb-2">
-                          {product.description}
-                        </p>
-                      )}
-                    </div>
-                    
-                    <div className="mt-auto space-y-3">
-                      <div className="flex items-center justify-between">
-                        <span className="text-xl font-black text-gray-900 dark:text-white">
-                          {product.has_variants && Number(product.min_price) !== Number(product.max_price)
-                            ? `₱${Number(product.min_price).toLocaleString()} - ${Number(product.max_price).toLocaleString()}`
-                            : `₱${Number(product.min_price || product.price_php).toLocaleString()}`
-                          }
-                        </span>
-                      </div>
-                      
-                      <div className="grid grid-cols-2 gap-2">
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            if (product.has_variants) {
-                              setSelectedProductForVariant(product);
-                            } else {
-                              addItem({
-                                id: String(product.id),
-                                name: product.name,
-                                pricePhp: Number(product.price_php),
-                                imageUrl: product.image_path,
-                                category: product.category_name,
-                                description: product.description,
-                                stock: Number(product.stock)
-                              });
-                            }
-                          }}
-                          className="flex items-center justify-center gap-1.5 py-2.5 rounded-xl bg-[#fff0f5] text-[#d62b70] text-[11px] font-bold hover:bg-[#ffe4ee] transition-all border border-[#d62b70]/20"
-                        >
-                          <ShoppingCart size={14} />
-                          Add to Cart
-                        </button>
-                        
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            if (product.has_variants) {
-                              setSelectedProductForVariant(product);
-                            } else {
-                              setDirectPurchase({
-                                id: String(product.id),
-                                name: product.name,
-                                pricePhp: Number(product.price_php),
-                                imageUrl: product.image_path,
-                                category: product.category_name,
-                                description: product.description,
-                                stock: Number(product.stock),
-                                quantity: 1
-                              });
-                              setCartOpen(true);
-                            }
-                          }}
-                          className="flex items-center justify-center gap-1.5 py-2.5 rounded-xl bg-[#d62b70] text-white text-[11px] font-bold hover:bg-[#c02663] transition-all shadow-sm"
-                        >
-                          Buy It Now
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                </div>
+                <ProductCard 
+                  key={product.id}
+                  product={product}
+                  onVariantClick={setSelectedProductForVariant}
+                  onImageClick={setFullScreenImageUrl}
+                />
+              ))}
 
               ))}
             </div>
@@ -630,4 +532,3 @@ export const HomePage: React.FC = () => {
     </div>
   );
 };
-

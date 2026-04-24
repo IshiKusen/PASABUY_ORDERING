@@ -18,7 +18,8 @@ interface AuthState {
   login: (userData: User) => void;
   logout: () => void;
   isLoginModalOpen: boolean;
-  setLoginModalOpen: (isOpen: boolean) => void;
+  authModalMode: 'login' | 'register';
+  setLoginModalOpen: (isOpen: boolean, mode?: 'login' | 'register') => void;
 }
 
 export const useAuthStore = create<AuthState>()(
@@ -32,7 +33,8 @@ export const useAuthStore = create<AuthState>()(
         set({ user: null, isAuthenticated: false });
       },
       isLoginModalOpen: false,
-      setLoginModalOpen: (isOpen) => set({ isLoginModalOpen: isOpen }),
+      authModalMode: 'login',
+      setLoginModalOpen: (isOpen, mode = 'login') => set({ isLoginModalOpen: isOpen, authModalMode: mode }),
     }),
     {
       name: 'auth-storage',

@@ -5,6 +5,7 @@ import { productsApi, categoriesApi, configApi } from '../../utils/api';
 import { useCartStore } from '../../store/cartStore';
 import { getImageUrl } from '../../utils/image';
 import { VariantSelectionModal, FullScreenImageModal, type Product } from '../../components/customer/ProductModals';
+import { ProductCard } from '../../components/customer/ProductCard';
 
 
 interface Category {
@@ -142,115 +143,12 @@ export const ProductsPage = () => {
         ) : (
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 md:gap-6">
             {products.map((product) => (
-              <div 
-                key={product.id} 
-                className="group bg-white dark:bg-dark-surface rounded-3xl shadow-sm hover:shadow-xl transition-all duration-300 overflow-hidden flex flex-col h-full border border-transparent dark:border-gray-800"
-              >
-                <div className="relative pt-[100%] bg-gray-50 dark:bg-dark-surfaceAlt overflow-hidden">
-                  <img
-                    src={getImageUrl(product.image_path)}
-                    alt={product.name}
-                    className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-500 cursor-zoom-in"
-                    onClick={() => setFullScreenImageUrl(getImageUrl(product.image_path))}
-                    loading="lazy"
-                  />
-
-                  <div className="absolute top-3 left-3">
-                    <span className="bg-white/95 dark:bg-dark-surface/95 backdrop-blur-sm px-2.5 py-1 rounded-full text-[11px] font-semibold text-gray-700 dark:text-gray-300 shadow-sm flex items-center gap-1.5">
-                      <span className="w-1.5 h-1.5 rounded-full bg-green-500"></span>
-                      {product.category_name}
-                    </span>
-                  </div>
-                  {Number(product.stock) < 10 && (
-                    <div className="absolute top-3 right-3">
-                      <span className="bg-red-500/90 backdrop-blur-sm px-2.5 py-1 rounded-full text-[10px] font-black text-white uppercase tracking-widest shadow-sm">
-                        Low Stock
-                      </span>
-                    </div>
-                  )}
-                </div>
-                
-                 <div 
-                   className={`p-4 md:p-5 flex flex-col flex-grow ${product.has_variants ? 'cursor-pointer hover:bg-gray-50/50 dark:hover:bg-gray-800/20' : ''}`}
-                   onClick={() => {
-                     if (product.has_variants) {
-                       setSelectedProductForVariant(product);
-                     }
-                   }}
-                 >
-                   <div className="mb-3 flex-grow">
-                     <h3 className="text-sm md:text-[15px] font-bold text-gray-900 dark:text-white mb-1 line-clamp-2 leading-snug">
-                       {product.name}
-                     </h3>
-                     {product.description && (
-                       <p className="text-primary-600 dark:text-primary-400 text-[10px] font-bold uppercase tracking-wider mb-2">
-                         {product.description}
-                       </p>
-                     )}
-                   </div>
-                   
-                   <div className="mt-auto space-y-3">
-                      <div className="flex items-center justify-between">
-                        <span className="text-base md:text-xl font-bold text-[#d62b70]">
-                          {product.has_variants && Number(product.min_price) !== Number(product.max_price)
-                            ? `₱${Number(product.min_price).toLocaleString()} - ${Number(product.max_price).toLocaleString()}`
-                            : `₱${Number(product.min_price || product.price_php).toLocaleString()}`
-                          }
-                        </span>
-                      </div>
-                      
-                      <div className="grid grid-cols-2 gap-2">
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            if (product.has_variants) {
-                              setSelectedProductForVariant(product);
-                            } else {
-                              addItem({
-                                id: String(product.id),
-                                name: product.name,
-                                pricePhp: Number(product.price_php),
-                                imageUrl: product.image_path,
-                                category: product.category_name,
-                                description: product.description,
-                                stock: Number(product.stock)
-                              });
-                            }
-                          }}
-                          className="flex items-center justify-center gap-1.5 py-2.5 rounded-xl bg-[#fff0f5] text-[#d62b70] text-[11px] font-bold hover:bg-[#ffe4ee] transition-all border border-[#d62b70]/20"
-                        >
-                          <ShoppingCart size={14} />
-                          Add to Cart
-                        </button>
-                        
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            if (product.has_variants) {
-                              setSelectedProductForVariant(product);
-                            } else {
-                              setDirectPurchase({
-                                id: String(product.id),
-                                name: product.name,
-                                pricePhp: Number(product.price_php),
-                                imageUrl: product.image_path,
-                                category: product.category_name,
-                                description: product.description,
-                                stock: Number(product.stock),
-                                quantity: 1
-                              });
-                              setCartOpen(true);
-                            }
-                          }}
-                          className="flex items-center justify-center gap-1.5 py-2.5 rounded-xl bg-[#d62b70] text-white text-[11px] font-bold hover:bg-[#c02663] transition-all shadow-sm"
-                        >
-                          Buy It Now
-                        </button>
-                      </div>
-                    </div>
-                 </div>
-
-              </div>
+              <ProductCard 
+                key={product.id}
+                product={product}
+                onVariantClick={setSelectedProductForVariant}
+                onImageClick={setFullScreenImageUrl}
+              />
             ))}
           </div>
         )}

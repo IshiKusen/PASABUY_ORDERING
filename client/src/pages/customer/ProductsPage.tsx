@@ -1,9 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { Search, MessageSquare, ShoppingCart } from 'lucide-react';
+import { Search, MessageSquare } from 'lucide-react';
 
 import { productsApi, categoriesApi, configApi } from '../../utils/api';
 import { useCartStore } from '../../store/cartStore';
-import { getImageUrl } from '../../utils/image';
 import { VariantSelectionModal, FullScreenImageModal, type Product } from '../../components/customer/ProductModals';
 import { ProductCard } from '../../components/customer/ProductCard';
 

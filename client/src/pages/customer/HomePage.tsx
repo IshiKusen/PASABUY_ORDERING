@@ -2,7 +2,6 @@ import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { ShoppingCart, ArrowRight, Package, Truck, CheckCircle, MessageSquare, Clock, Shield, Star, ChevronRight, Smartphone } from 'lucide-react';
 import { productsApi, configApi } from '../../utils/api';
-import { getImageUrl } from '../../utils/image';
 import { useCartStore } from '../../store/cartStore';
 import { VariantSelectionModal, FullScreenImageModal, type Product } from '../../components/customer/ProductModals';
 import { ProductCard } from '../../components/customer/ProductCard';
@@ -39,27 +38,7 @@ export const HomePage: React.FC = () => {
       }
     };
     fetchData();
-
-    const handleBeforeInstallPrompt = (e: any) => {
-      e.preventDefault();
-      setDeferredPrompt(e);
-    };
-
-    window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
-    return () => window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
   }, []);
-
-  const handleInstallClick = async () => {
-    if (!deferredPrompt) {
-      alert('To install: Tap the "Share" or "Menu" icon in your browser and select "Add to Home Screen".');
-      return;
-    }
-    deferredPrompt.prompt();
-    const { outcome } = await deferredPrompt.userChoice;
-    if (outcome === 'accepted') {
-      setDeferredPrompt(null);
-    }
-  };
 
   const getTimeRemaining = () => {
     if (!config.cutoff_date) return null;
@@ -339,8 +318,6 @@ export const HomePage: React.FC = () => {
                   onVariantClick={setSelectedProductForVariant}
                   onImageClick={setFullScreenImageUrl}
                 />
-              ))}
-
               ))}
             </div>
           )}

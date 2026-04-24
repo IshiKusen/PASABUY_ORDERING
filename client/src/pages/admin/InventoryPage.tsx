@@ -33,6 +33,7 @@ interface Variant {
   image_file?: File | null;
   image_preview?: string;
   image_path?: string;
+  barcode?: string;
 }
 
 interface Product {
@@ -70,9 +71,6 @@ export const InventoryPage: React.FC = () => {
 
   // Form States
   const [formName, setFormName] = useState("");
-  const [formDescription, setFormDescription] = useState("");
-  const [formPricePhp, setFormPricePhp] = useState("");
-  const [formPriceJpy, setFormPriceJpy] = useState("");
   const [formCategory, setFormCategory] = useState("");
   const [isNewCategory, setIsNewCategory] = useState(false);
   const [newCategoryName, setNewCategoryName] = useState("");
@@ -81,18 +79,14 @@ export const InventoryPage: React.FC = () => {
   const [editCategoryName, setEditCategoryName] = useState("");
   const [formStock, setFormStock] = useState("");
   const [formBarcode, setFormBarcode] = useState("");
-  const [formBrand, setFormBrand] = useState("");
   const [formImageFile, setFormImageFile] = useState<File | null>(null);
   const [formImagePreview, setFormImagePreview] = useState("");
   const [dragActive, setDragActive] = useState(false);
   const [formVariants, setFormVariants] = useState<Variant[]>([]);
-  const [formHasVariants, setFormHasVariants] = useState(false);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
   const [targetVariantIndex, setTargetVariantIndex] = useState<number | null>(null);
-  const [showPasteButton, setShowPasteButton] = useState(false);
-  const longPressTimerRef = useRef<any>(null);
 
   // Live Camera States
   const [isLiveCameraOpen, setIsLiveCameraOpen] = useState(false);
@@ -142,31 +136,35 @@ export const InventoryPage: React.FC = () => {
     if (product) {
       setEditingProduct(product);
       setFormName(product.name);
-      setFormDescription(product.description || "");
-      setFormPricePhp(product.price_php);
-      setFormPriceJpy(product.price_jpy || "");
       setFormCategory(String(product.category_id));
       setFormStock(String(product.stock));
       setFormImagePreview(product.image_path ? getImageUrl(product.image_path) : "");
       setFormImageFile(null);
       setFormBarcode(product.barcode || "");
-      setFormBrand(product.brand || "");
-      setFormVariants(product.variants || []);
-      setFormHasVariants(product.variants && product.variants.length > 0 ? true : false);
+      setFormVariants(product.variants && product.variants.length > 0 ? product.variants : [{
+        variant_name: "Default",
+        price_php: product.price_php,
+        price_jpy: product.price_jpy || "",
+        stock: String(product.stock),
+        barcode: product.barcode || "",
+        image_preview: product.image_path ? getImageUrl(product.image_path) : ""
+      }]);
     } else {
       setEditingProduct(null);
       setFormName("");
-      setFormDescription("");
-      setFormPricePhp("");
-      setFormPriceJpy("");
       setFormCategory(categories.length > 0 ? String(categories[0].id) : "");
       setFormStock(defaultStock);
       setFormImagePreview("");
       setFormImageFile(null);
       setFormBarcode("");
-      setFormBrand("");
-      setFormVariants([]);
-      setFormHasVariants(false);
+      setFormVariants([{
+        variant_name: "",
+        price_php: "",
+        price_jpy: "",
+        stock: defaultStock,
+        barcode: "",
+        image_preview: ""
+      }]);
     }
     setIsNewCategory(false);
     setNewCategoryName("");
@@ -223,11 +221,6 @@ export const InventoryPage: React.FC = () => {
         }
       }
       
-      if (data.brand) {
-        setFormBrand(data.brand);
-        // If it's a food product, description is usually the name or brand
-        if (!formDescription) setFormDescription(data.name || "");
-      }
       if (data.image) {
         setFormImagePreview(data.image);
         setFormImageFile(null); // Use the URL from API
@@ -269,24 +262,6 @@ export const InventoryPage: React.FC = () => {
     }
   };
 
-  // Currency Conversion
-  const handlePhpChange = (val: string) => {
-    setFormPricePhp(val);
-    if (val && !isNaN(Number(val)) && jpyToPhpRate > 0) {
-      setFormPriceJpy((Number(val) / jpyToPhpRate).toFixed(0));
-    } else {
-      setFormPriceJpy("");
-    }
-  };
-
-  const handleJpyChange = (val: string) => {
-    setFormPriceJpy(val);
-    if (val && !isNaN(Number(val)) && jpyToPhpRate > 0) {
-      setFormPricePhp((Number(val) * jpyToPhpRate).toFixed(2));
-    } else {
-      setFormPricePhp("");
-    }
-  };
 
   // Drag and Drop
   const handleDrag = (e: React.DragEvent) => {
@@ -352,7 +327,6 @@ export const InventoryPage: React.FC = () => {
                 setFormImageFile(file);
                 setFormImagePreview(URL.createObjectURL(file));
               }
-              setShowPasteButton(false);
               return;
             }
           }
@@ -388,18 +362,6 @@ export const InventoryPage: React.FC = () => {
     }
   };
 
-  // Mobile Long Press Logic
-  const handleTouchStart = () => {
-    longPressTimerRef.current = setTimeout(() => {
-      setShowPasteButton(true);
-    }, 500); // 500ms for long press
-  };
-
-  const handleTouchEnd = () => {
-    if (longPressTimerRef.current) {
-      clearTimeout(longPressTimerRef.current);
-    }
-  };
 
   // Unified Live Camera & Scanner Logic
   const startLiveCamera = async (mode: 'user' | 'environment' = 'environment') => {
@@ -629,9 +591,10 @@ export const InventoryPage: React.FC = () => {
   const addVariant = () => {
     setFormVariants([...formVariants, {
       variant_name: "",
-      price_php: formPricePhp || "",
-      price_jpy: formPriceJpy || "",
+      price_php: "",
+      price_jpy: "",
       stock: defaultStock,
+      barcode: "",
       image_file: null,
       image_preview: ""
     }]);
@@ -677,11 +640,15 @@ export const InventoryPage: React.FC = () => {
 
       const formData = new FormData();
       formData.append('name', formName);
-      formData.append('description', formDescription);
-      formData.append('brand', formBrand);
+      formData.append('description', ''); // Removed as requested
+      formData.append('brand', ''); // Removed as requested
       formData.append('barcode', formBarcode);
-      formData.append('price_php', formPricePhp);
-      formData.append('price_jpy', formPriceJpy);
+      
+      // Use first variant's price as base product price for legacy support
+      const baseVariant = formVariants[0];
+      formData.append('price_php', baseVariant?.price_php || '0');
+      formData.append('price_jpy', baseVariant?.price_jpy || '0');
+      
       formData.append('category_id', categoryId);
       formData.append('stock', formStock);
       
@@ -715,6 +682,7 @@ export const InventoryPage: React.FC = () => {
           price_php: v.price_php,
           price_jpy: v.price_jpy,
           stock: v.stock,
+          barcode: v.barcode,
           image_path: v.image_path // for existing variants
         };
       });
@@ -861,7 +829,9 @@ export const InventoryPage: React.FC = () => {
                         </div>
                         <div>
                           <h4 className="font-bold text-gray-900 dark:text-white line-clamp-1">{product.name}</h4>
-                          <p className="text-xs text-gray-400 font-medium">{product.description || 'No brand specified'}</p>
+                          <p className="text-[10px] text-primary-500 font-black uppercase tracking-widest mt-0.5">
+                            {product.variants?.length || 0} Variation{(product.variants?.length || 0) !== 1 ? 's' : ''}
+                          </p>
                         </div>
                       </div>
                     </td>
@@ -962,13 +932,12 @@ export const InventoryPage: React.FC = () => {
               </button>
             </div>
 
-            <form onSubmit={handleSave} className="overflow-y-auto flex-1 p-6 space-y-6 scrollbar-thin">
-              {/* Image Upload Area */}
+            <form onSubmit={handleSave} className="overflow-y-auto flex-1 p-6 space-y-8 scrollbar-thin">
+              {/* Image Upload Area - For Product Level (Optional) */}
               <div className="flex flex-col items-center justify-center">
                 <div 
-                  className={`w-full h-48 rounded-2xl border-2 border-dashed flex flex-col items-center justify-center transition-all cursor-pointer overflow-hidden relative group ${
+                  className={`w-full h-40 rounded-[2rem] border-2 border-dashed flex flex-col items-center justify-center transition-all cursor-pointer overflow-hidden relative group ${
                     dragActive ? 'border-primary-500 bg-primary-50 dark:bg-primary-900/10' : 
-                    targetVariantIndex === null ? 'border-primary-500 ring-2 ring-primary-500/20 bg-primary-50/5' :
                     'border-gray-200 dark:border-gray-800 hover:border-primary-400'
                   }`}
                   onDragEnter={handleDrag}
@@ -977,9 +946,6 @@ export const InventoryPage: React.FC = () => {
                   onDrop={handleDrop}
                   onPaste={handlePaste}
                   onClick={() => { setTargetVariantIndex(null); fileInputRef.current?.click(); }}
-                  onContextMenu={(e) => { e.preventDefault(); handleTouchStart(); }}
-                  onTouchStart={handleTouchStart}
-                  onTouchEnd={handleTouchEnd}
                 >
                   {formImagePreview ? (
                     <div className="relative w-full h-full">
@@ -994,43 +960,11 @@ export const InventoryPage: React.FC = () => {
                        </div>
                     </div>
                   ) : (
-                    <div className="flex flex-col items-center gap-3 p-6 text-center">
-                      <div className="w-12 h-12 bg-primary-50 dark:bg-primary-900/20 rounded-full flex items-center justify-center text-primary-500">
-                        <UploadCloud size={24} />
-                      </div>
+                    <div className="flex flex-col items-center gap-2 p-6 text-center">
+                      <UploadCloud size={24} className="text-primary-500" />
                       <div>
-                        <p className="text-sm font-bold text-gray-700 dark:text-gray-300">Drop image here or click to upload</p>
-                        <p className="text-[10px] text-gray-400 uppercase tracking-widest mt-1">Supports PNG, JPG, JPEG • Pasting allowed</p>
-                      </div>
-                      <button 
-                        type="button" 
-                        onClick={(e) => { e.stopPropagation(); startLiveCamera('environment'); }}
-                        className="mt-2 text-xs font-bold text-primary-500 hover:underline flex items-center gap-1.5"
-                      >
-                        <Camera size={14} />
-                        Or use live camera
-                      </button>
-                    </div>
-                  )}
-
-                  {/* Floating Paste Button for Mobile */}
-                  {showPasteButton && (
-                    <div className="absolute inset-0 bg-black/60 backdrop-blur-sm z-20 flex items-center justify-center p-4 animate-in zoom-in-95 duration-200">
-                      <div className="bg-white dark:bg-zinc-900 rounded-2xl p-4 shadow-2xl w-full max-w-[200px]">
-                        <button 
-                          type="button"
-                          onClick={(e) => { e.stopPropagation(); handlePaste(e as any); }}
-                          className="w-full py-3 bg-primary-500 text-white rounded-xl font-bold flex items-center justify-center gap-2"
-                        >
-                          Paste Image
-                        </button>
-                        <button 
-                          type="button"
-                          onClick={(e) => { e.stopPropagation(); setShowPasteButton(false); }}
-                          className="w-full py-2 text-gray-400 text-xs font-bold"
-                        >
-                          Cancel
-                        </button>
+                        <p className="text-sm font-bold text-gray-700 dark:text-gray-300">Main Product Image (Optional)</p>
+                        <p className="text-[10px] text-gray-400 uppercase tracking-widest mt-1">Drop image here or click to upload</p>
                       </div>
                     </div>
                   )}
@@ -1041,356 +975,250 @@ export const InventoryPage: React.FC = () => {
 
             {/* Fields Grouped */}
             <div className="space-y-8">
-                {/* Section: Basic Information */}
+                {/* Step 1: Product Name */}
                 <div className="space-y-4">
-                  <div className="flex items-center gap-2 pb-2 border-b dark:border-gray-800">
-                    <div className="p-1.5 bg-blue-50 dark:bg-blue-900/20 text-blue-500 rounded-lg">
-                      <Package size={16} />
-                    </div>
-                    <h3 className="text-sm font-black uppercase tracking-wider text-gray-700 dark:text-gray-300">Basic Information</h3>
-                  </div>
-
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className="md:col-span-2">
-                      <div className="flex items-center justify-between mb-1">
-                        <label className="block text-xs font-bold text-gray-500 uppercase tracking-tight">Product Name</label>
-                        {lookupSource && (
-                          <span className="text-[10px] bg-primary-50 dark:bg-primary-900/30 text-primary-600 px-2 py-0.5 rounded-full font-bold flex items-center gap-1 border border-primary-100 dark:border-primary-800 animate-in fade-in slide-in-from-right-2">
-                            <Zap size={10} className="fill-current" />
-                            Found via {lookupSource}
-                          </span>
-                        )}
-                      </div>
-                      <div className="flex gap-2">
-                        <input type="text" value={formName} onChange={e => setFormName(e.target.value)} className="input flex-1 !rounded-2xl" placeholder="e.g. SK-II Facial Treatment Essence" required />
-                        <button 
-                          type="button" 
-                          onClick={() => startLiveCamera('environment')}
-                          className="p-3 bg-primary-500 text-white rounded-2xl hover:bg-primary-600 transition-all flex items-center justify-center shrink-0 shadow-lg shadow-primary-500/20 active:scale-95"
-                          title="Open Camera / Scan Barcode"
-                        >
-                          <Camera size={20} />
-                        </button>
-                      </div>
-                    </div>
-                    
-                    <div className="md:col-span-2">
-                      <label className="block text-xs font-bold text-gray-500 uppercase tracking-tight mb-1">Barcode / JAN Code</label>
-                      <div className="flex gap-2">
-                        <input 
-                          type="text" 
-                          value={formBarcode} 
-                          onChange={e => setFormBarcode(e.target.value)} 
-                          onKeyDown={e => e.key === 'Enter' && (e.preventDefault(), handleBarcodeLookup(formBarcode))}
-                          className="input flex-1 !rounded-2xl" 
-                          placeholder="e.g. 4901234567890" 
-                        />
-                        <button 
-                          type="button" 
-                          onClick={() => handleBarcodeLookup(formBarcode)}
-                          disabled={!formBarcode || lookupLoading}
-                          className="px-4 bg-gray-100 dark:bg-dark-surfaceAlt text-gray-600 dark:text-gray-400 rounded-2xl hover:bg-gray-200 dark:hover:bg-gray-700 transition-all font-bold text-xs uppercase tracking-wider disabled:opacity-50 flex items-center gap-2"
-                        >
-                          {lookupLoading ? <Loader2 size={16} className="animate-spin" /> : <Search size={16} />}
-                          Lookup
-                        </button>
-                      </div>
-                    </div>
-
-                    <div>
-                      <label className="block text-xs font-bold text-gray-500 uppercase tracking-tight mb-1">Brand Name</label>
-                      <input type="text" value={formBrand} onChange={e => setFormBrand(e.target.value)} className="input !rounded-2xl" placeholder="e.g. Shiseido, Meiji" />
-                    </div>
-
-                    <div>
-                      <label className="block text-xs font-bold text-gray-500 uppercase tracking-tight mb-1">Product Category</label>
-                      <div className="space-y-3">
-                        <div className="flex flex-wrap gap-2">
-                          {categories.slice(0, 5).map(cat => (
-                            <button
-                              key={cat.id}
-                              type="button"
-                              onClick={() => { setFormCategory(String(cat.id)); setIsNewCategory(false); }}
-                              className={`px-3 py-1.5 rounded-full text-[10px] font-bold uppercase transition-all border ${
-                                !isNewCategory && formCategory === String(cat.id)
-                                ? "bg-primary-500 border-primary-500 text-white shadow-md shadow-primary-500/20"
-                                : "bg-white dark:bg-dark-surface border-gray-200 dark:border-gray-800 text-gray-500 hover:border-primary-400"
-                              }`}
-                            >
-                              {cat.name}
-                            </button>
-                          ))}
-                        </div>
-                        
-                        <div className="flex gap-2">
-                          <select 
-                            value={isNewCategory ? "new" : formCategory} 
-                            onChange={(e) => {
-                              if (e.target.value === "new") {
-                                setIsNewCategory(true);
-                                setFormCategory("");
-                              } else {
-                                setIsNewCategory(false);
-                                setFormCategory(e.target.value);
-                              }
-                            }}
-                            className="input flex-1 !rounded-2xl appearance-none bg-no-repeat bg-[right_1rem_center] bg-[length:1em_1em]"
-                            style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='currentColor'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M19 9l-7 7-7-7'%3E%3C/path%3E%3C/svg%3E")` }}
-                          >
-                            <option value="" disabled>Select category...</option>
-                            {categories.map(cat => (
-                              <option key={cat.id} value={cat.id}>{cat.name}</option>
-                            ))}
-                            <option value="new" className="font-bold text-primary-600">+ Add New Category</option>
-                          </select>
-                          
-                          <button 
-                            type="button"
-                            onClick={() => setIsCategoryManagerOpen(true)}
-                            className="p-3 bg-gray-100 dark:bg-dark-surfaceAlt text-gray-500 rounded-2xl hover:bg-gray-200 transition-colors"
-                            title="Manage Categories"
-                          >
-                            <Settings size={20} />
-                          </button>
-                        </div>
-
-                        {isNewCategory && (
-                          <div className="animate-in slide-in-from-top-1 duration-200">
-                            <input 
-                              type="text" 
-                              value={newCategoryName} 
-                              onChange={e => setNewCategoryName(e.target.value)}
-                              className="input !rounded-2xl border-primary-300 focus:border-primary-500 ring-2 ring-primary-500/10"
-                              placeholder="Type new category name..."
-                              required
-                              autoFocus
-                            />
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Section: Pricing & Stock */}
-                <div className="space-y-4">
-                  <div className="flex items-center gap-2 pb-2 border-b dark:border-gray-800">
-                    <div className="p-1.5 bg-green-50 dark:bg-green-900/20 text-green-500 rounded-lg">
-                      <Zap size={16} />
-                    </div>
-                    <h3 className="text-sm font-black uppercase tracking-wider text-gray-700 dark:text-gray-300">Pricing & Inventory</h3>
-                  </div>
-
-                  <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                    {!formHasVariants ? (
-                      <>
-                        <div className="col-span-1">
-                          <label className="block text-xs font-bold text-gray-500 uppercase tracking-tight mb-1">Base Price (₱)</label>
-                          <div className="relative">
-                            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 font-bold">₱</span>
-                            <input 
-                              type="number" 
-                              value={formPricePhp} 
-                              onChange={e => handlePhpChange(e.target.value)} 
-                              className="input pl-8 w-full !rounded-2xl" 
-                              placeholder="0.00" 
-                              required={!formHasVariants}
-                            />
-                          </div>
-                        </div>
-
-                        <div className="col-span-1">
-                          <label className="block text-xs font-bold text-gray-500 uppercase tracking-tight mb-1">Base Price (¥)</label>
-                          <div className="relative">
-                            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 font-bold">¥</span>
-                            <input 
-                              type="number" 
-                              value={formPriceJpy} 
-                              onChange={e => handleJpyChange(e.target.value)} 
-                              className="input pl-8 w-full !rounded-2xl" 
-                              placeholder="0" 
-                            />
-                          </div>
-                        </div>
-
-                        <div className="col-span-2 md:col-span-1">
-                          <label className="block text-xs font-bold text-gray-500 uppercase tracking-tight mb-1">Base Stock</label>
-                          <input 
-                            type="number" 
-                            value={formStock} 
-                            onChange={e => setFormStock(e.target.value)} 
-                            className="input w-full !rounded-2xl bg-primary-50/30 dark:bg-primary-900/10 border-primary-100 dark:border-primary-900/30 font-bold text-primary-600" 
-                            placeholder="0" 
-                            required={!formHasVariants} 
-                          />
-                        </div>
-                      </>
-                    ) : (
-                      <div className="col-span-3 p-4 bg-gray-50 dark:bg-dark-surfaceAlt rounded-2xl border border-dashed border-gray-200 dark:border-gray-800 flex items-center justify-center gap-3">
-                        <div className="p-2 bg-white dark:bg-dark-surface rounded-xl shadow-sm text-primary-500">
-                          <Settings size={20} />
-                        </div>
-                        <p className="text-xs font-medium text-gray-500">
-                          Individual pricing and stock are managed in the <span className="font-bold text-primary-600">Variations</span> section below.
-                        </p>
-                      </div>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="block text-xs font-black text-gray-400 uppercase tracking-widest">Product Name</label>
+                    {lookupSource && (
+                      <span className="text-[10px] bg-primary-50 dark:bg-primary-900/30 text-primary-600 px-2 py-0.5 rounded-full font-bold flex items-center gap-1 border border-primary-100 dark:border-primary-800 animate-in fade-in slide-in-from-right-2">
+                        <Zap size={10} className="fill-current" />
+                        Found via {lookupSource}
+                      </span>
                     )}
                   </div>
+                  <input type="text" value={formName} onChange={e => setFormName(e.target.value)} className="input w-full !rounded-[1.5rem] !py-4 text-lg font-bold" placeholder="e.g. SK-II Facial Treatment Essence" required />
                 </div>
 
-                {/* Section: Variations */}
+                {/* Step 2: Barcode and Scanner */}
                 <div className="space-y-4">
-                  <div className="flex items-center justify-between pb-2 border-b dark:border-gray-800">
-                    <div className="flex items-center gap-2">
-                      <div className="p-1.5 bg-purple-50 dark:bg-purple-900/20 text-purple-500 rounded-lg">
-                        <Filter size={16} />
-                      </div>
-                      <h3 className="text-sm font-black uppercase tracking-wider text-gray-700 dark:text-gray-300">Product Variations</h3>
+                  <label className="block text-xs font-black text-gray-400 uppercase tracking-widest">Barcode / JAN Code (Product Reference)</label>
+                  <div className="flex gap-3">
+                    <div className="relative flex-1">
+                      <input 
+                        type="text" 
+                        value={formBarcode} 
+                        onChange={e => setFormBarcode(e.target.value)} 
+                        onKeyDown={e => e.key === 'Enter' && (e.preventDefault(), handleBarcodeLookup(formBarcode))}
+                        className="input w-full !rounded-[1.5rem] !pl-12 !py-4 font-mono text-sm" 
+                        placeholder="Scan or enter barcode..." 
+                      />
+                      <Barcode className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={20} />
                     </div>
-                    
-                    <div className="flex items-center gap-2">
-                      <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Has Variants?</span>
-                      <button 
+                    <button 
+                      type="button" 
+                      onClick={() => { setTargetVariantIndex(null); startLiveCamera('environment'); }}
+                      className="p-4 bg-primary-500 text-white rounded-[1.5rem] hover:bg-primary-600 transition-all flex items-center justify-center shrink-0 shadow-lg shadow-primary-500/20 active:scale-95"
+                      title="Scan Barcode"
+                    >
+                      <Camera size={24} />
+                    </button>
+                    <button 
+                      type="button" 
+                      onClick={() => handleBarcodeLookup(formBarcode)}
+                      disabled={!formBarcode || lookupLoading}
+                      className="p-4 bg-gray-100 dark:bg-dark-surfaceAlt text-gray-600 dark:text-gray-400 rounded-[1.5rem] hover:bg-gray-200 dark:hover:bg-gray-700 transition-all disabled:opacity-50 flex items-center justify-center"
+                      title="Lookup Details"
+                    >
+                      {lookupLoading ? <Loader2 size={24} className="animate-spin" /> : <Search size={24} />}
+                    </button>
+                  </div>
+                </div>
+
+                {/* Step 3: Categories */}
+                <div className="space-y-4">
+                  <label className="block text-xs font-black text-gray-400 uppercase tracking-widest">Product Category</label>
+                  <div className="flex flex-wrap gap-2 mb-3">
+                    {categories.slice(0, 8).map(cat => (
+                      <button
+                        key={cat.id}
                         type="button"
-                        onClick={() => {
-                          const newVal = !formHasVariants;
-                          setFormHasVariants(newVal);
-                          if (newVal && formVariants.length === 0) addVariant();
-                          if (!newVal) setFormVariants([]);
-                        }}
-                        className={`w-10 h-5 rounded-full transition-all relative ${formHasVariants ? 'bg-primary-500' : 'bg-gray-200 dark:bg-gray-700'}`}
+                        onClick={() => { setFormCategory(String(cat.id)); setIsNewCategory(false); }}
+                        className={`px-4 py-2 rounded-full text-[11px] font-bold uppercase transition-all border ${
+                          !isNewCategory && formCategory === String(cat.id)
+                          ? "bg-primary-500 border-primary-500 text-white shadow-lg shadow-primary-500/25"
+                          : "bg-white dark:bg-dark-surface border-gray-200 dark:border-gray-800 text-gray-500 hover:border-primary-400"
+                        }`}
                       >
-                        <div className={`absolute top-1 w-3 h-3 bg-white rounded-full transition-all ${formHasVariants ? 'left-6' : 'left-1'}`} />
+                        {cat.name}
                       </button>
-                    </div>
+                    ))}
+                  </div>
+                  
+                  <div className="flex gap-3">
+                    <select 
+                      value={isNewCategory ? "new" : formCategory} 
+                      onChange={(e) => {
+                        if (e.target.value === "new") {
+                          setIsNewCategory(true);
+                          setFormCategory("");
+                        } else {
+                          setIsNewCategory(false);
+                          setFormCategory(e.target.value);
+                        }
+                      }}
+                      className="input flex-1 !rounded-[1.5rem] !py-3.5 appearance-none bg-no-repeat bg-[right_1.5rem_center] bg-[length:1.2em_1.2em]"
+                      style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='currentColor'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M19 9l-7 7-7-7'%3E%3C/path%3E%3C/svg%3E")` }}
+                    >
+                      <option value="" disabled>Or choose from all categories...</option>
+                      {categories.map(cat => (
+                        <option key={cat.id} value={cat.id}>{cat.name}</option>
+                      ))}
+                      <option value="new" className="font-bold text-primary-600">+ Add New Category</option>
+                    </select>
+                    
+                    <button 
+                      type="button"
+                      onClick={() => setIsCategoryManagerOpen(true)}
+                      className="p-3.5 bg-gray-100 dark:bg-dark-surfaceAlt text-gray-500 rounded-[1.5rem] hover:bg-gray-200 transition-colors"
+                    >
+                      <Settings size={22} />
+                    </button>
                   </div>
 
-                  {formHasVariants ? (
-                    <div className="space-y-4 animate-in slide-in-from-top-2 duration-300">
-                      {formVariants.map((variant, index) => (
-                        <div 
-                          key={index} 
-                          onClick={() => setTargetVariantIndex(index)}
-                          onPaste={handlePaste}
-                          className={`p-5 bg-white dark:bg-dark-surface border rounded-2xl shadow-sm space-y-4 group/variant transition-all cursor-pointer outline-none ${
-                            targetVariantIndex === index 
-                              ? 'border-primary-500 ring-2 ring-primary-500/20 bg-primary-50/5 dark:bg-primary-900/5' 
-                              : 'border-gray-100 dark:border-gray-800 hover:border-primary-200 dark:hover:border-primary-900/50'
-                          }`}
-                        >
-                          <div className="flex items-center justify-between">
-                            <span className="text-[10px] font-black text-primary-500 uppercase tracking-widest">Variant #{index + 1}</span>
-                            <button 
-                              type="button" 
-                              onClick={() => {
-                                const updated = formVariants.filter((_, i) => i !== index);
-                                setFormVariants(updated);
-                                if (updated.length === 0) setFormHasVariants(false);
-                              }}
-                              className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-all"
-                            >
-                              <Trash2 size={16} />
-                            </button>
-                          </div>
-                          
-                          <div className="flex flex-col sm:flex-row gap-5">
-                            {/* Variant Image */}
+                  {isNewCategory && (
+                    <div className="animate-in slide-in-from-top-1 duration-200">
+                      <input 
+                        type="text" 
+                        value={newCategoryName} 
+                        onChange={e => setNewCategoryName(e.target.value)}
+                        className="input !rounded-[1.5rem] border-primary-300 focus:border-primary-500 ring-4 ring-primary-500/10"
+                        placeholder="Type new category name..."
+                        required
+                        autoFocus
+                      />
+                    </div>
+                  )}
+                </div>
+
+                {/* Step 4: Variations */}
+                <div className="space-y-6 pt-4">
+                  <div className="flex items-center gap-2 pb-2 border-b dark:border-gray-800">
+                    <div className="p-1.5 bg-purple-50 dark:bg-purple-900/20 text-purple-500 rounded-lg">
+                      <Filter size={16} />
+                    </div>
+                    <h3 className="text-sm font-black uppercase tracking-wider text-gray-700 dark:text-gray-300">Variations (Pricing & Stock)</h3>
+                  </div>
+
+                  <div className="space-y-6">
+                    {formVariants.map((variant, index) => (
+                      <div 
+                        key={index} 
+                        onClick={() => setTargetVariantIndex(index)}
+                        className={`relative p-6 bg-gray-50/50 dark:bg-white/5 rounded-[2rem] border transition-all ${
+                          targetVariantIndex === index 
+                            ? 'border-primary-500 ring-4 ring-primary-500/10 bg-primary-50/10' 
+                            : 'border-gray-100 dark:border-gray-800 hover:border-primary-200'
+                        }`}
+                      >
+                        {formVariants.length > 1 && (
+                          <button 
+                            type="button" 
+                            onClick={(e) => { e.stopPropagation(); setFormVariants(formVariants.filter((_, i) => i !== index)); }}
+                            className="absolute -top-2 -right-2 p-2 bg-white dark:bg-dark-surface text-red-500 rounded-full shadow-lg border border-gray-100 dark:border-gray-800 hover:bg-red-50 transition-all active:scale-90"
+                          >
+                            <X size={16} />
+                          </button>
+                        )}
+                        
+                        <div className="grid grid-cols-1 md:grid-cols-12 gap-6">
+                          {/* Variant Image */}
+                          <div className="md:col-span-3">
                             <div 
-                              className={`w-20 h-20 rounded-2xl border-2 border-dashed flex flex-col items-center justify-center cursor-pointer overflow-hidden relative shrink-0 transition-all ${
-                                variant.image_preview || variant.image_path
-                                  ? 'border-primary-200'
-                                  : 'border-gray-200 dark:border-gray-800 hover:border-primary-400'
+                              className={`aspect-square rounded-2xl border-2 border-dashed flex flex-col items-center justify-center cursor-pointer overflow-hidden relative group transition-all ${
+                                variant.image_preview || variant.image_path ? 'border-transparent' : 'border-gray-200 dark:border-gray-800 hover:border-primary-400'
                               }`}
-                              onClick={() => { setTargetVariantIndex(index); fileInputRef.current?.click(); }}
+                              onClick={(e) => { e.stopPropagation(); setTargetVariantIndex(index); fileInputRef.current?.click(); }}
                             >
-                               <div className="absolute inset-0 z-10 opacity-0 group-hover/variant:opacity-100 bg-black/40 transition-all flex items-center justify-center gap-2">
-                                  <button type="button" onClick={(e) => { e.stopPropagation(); setTargetVariantIndex(index); startLiveCamera('environment'); }} className="p-2 bg-white/20 backdrop-blur-md rounded-full text-white">
-                                    <Camera size={14} />
-                                  </button>
-                               </div>
                               {variant.image_preview || (variant.image_path && getImageUrl(variant.image_path)) ? (
-                                <img 
-                                  src={variant.image_preview || (variant.image_path ? getImageUrl(variant.image_path) : '')} 
-                                  alt="V" 
-                                  className="w-full h-full object-cover" 
-                                />
+                                <img src={variant.image_preview || (variant.image_path ? getImageUrl(variant.image_path) : '')} alt="Variant" className="w-full h-full object-cover" />
                               ) : (
-                                <div className="flex flex-col items-center gap-1">
-                                  <ImageIcon size={20} className="text-gray-300" />
-                                  <span className="text-[8px] text-gray-400 font-bold uppercase">Photo</span>
+                                <div className="text-center p-2">
+                                  <ImageIcon size={24} className="mx-auto text-gray-300 mb-1" />
+                                  <span className="text-[10px] font-bold text-gray-400 uppercase tracking-tighter">Add Photo</span>
                                 </div>
                               )}
+                              <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
+                                 <Camera size={20} className="text-white" />
+                              </div>
                             </div>
-                            
-                            <div className="flex-1 grid grid-cols-2 sm:grid-cols-4 gap-3">
-                              <div className="col-span-2 sm:col-span-1">
-                                <label className="block text-[10px] uppercase font-bold text-gray-400 mb-1">Option Name</label>
-                                <input
-                                  placeholder="e.g. Red, XL"
-                                  className="input py-2 text-sm !rounded-xl"
-                                  value={variant.variant_name}
-                                  onChange={(e) => handleVariantChange(index, 'variant_name', e.target.value)}
+                          </div>
+
+                          {/* Variant Details */}
+                          <div className="md:col-span-9 space-y-4">
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                              <div className="md:col-span-2">
+                                <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">Variant Name (e.g. Flavor, Color)</label>
+                                <input 
+                                  type="text" 
+                                  value={variant.variant_name} 
+                                  onChange={e => handleVariantChange(index, 'variant_name', e.target.value)}
+                                  className="input w-full !rounded-xl !py-3 text-sm font-bold" 
+                                  placeholder="e.g. Matcha, XL, Red" 
                                   required
                                 />
-                                
-                                {/* Quick Select Chips */}
-                                <div className="flex flex-wrap gap-1 mt-2">
-                                  {["S", "M", "L", "XL", "2XL", "Set A", "Set B", "Red", "Blue", "Black", "White"].map(choice => (
-                                    <button
-                                      key={choice}
-                                      type="button"
-                                      onClick={() => handleVariantChange(index, 'variant_name', choice)}
-                                      className="px-2 py-0.5 text-[8px] font-black bg-gray-100 dark:bg-dark-surfaceAlt text-gray-500 hover:bg-primary-500 hover:text-white rounded-md transition-all uppercase"
-                                    >
-                                      {choice}
-                                    </button>
-                                  ))}
+                              </div>
+
+                              <div className="md:col-span-2">
+                                <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">Variant Barcode</label>
+                                <div className="flex gap-2">
+                                  <input 
+                                    type="text" 
+                                    value={variant.barcode || ""} 
+                                    onChange={e => handleVariantChange(index, 'barcode', e.target.value)}
+                                    className="input flex-1 !rounded-xl !py-2.5 text-xs font-mono" 
+                                    placeholder="Scan separate barcode for this flavor" 
+                                  />
+                                  <button 
+                                    type="button" 
+                                    onClick={(e) => { e.stopPropagation(); setTargetVariantIndex(index); startLiveCamera('environment'); }}
+                                    className="p-2.5 bg-gray-100 dark:bg-dark-surfaceAlt text-gray-600 rounded-xl hover:bg-gray-200 transition-all"
+                                  >
+                                    <Camera size={18} />
+                                  </button>
                                 </div>
                               </div>
+
                               <div>
-                                 <label className="block text-[10px] uppercase font-bold text-gray-400 mb-1">Price (₱)</label>
-                                 <input
-                                   type="number"
-                                   className="input py-2 text-sm !rounded-xl"
-                                   value={variant.price_php}
-                                   onChange={(e) => handleVariantChange(index, 'price_php', e.target.value)}
-                                   required
-                                 />
-                               </div>
+                                <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">Price (₱)</label>
+                                <div className="relative">
+                                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 font-bold text-xs">₱</span>
+                                  <input 
+                                    type="number" 
+                                    value={variant.price_php} 
+                                    onChange={e => handleVariantChange(index, 'price_php', e.target.value)}
+                                    className="input pl-7 w-full !rounded-xl !py-2.5 text-sm font-bold text-[#d62b70]" 
+                                    placeholder="0.00" 
+                                    required
+                                  />
+                                </div>
+                              </div>
+
                               <div>
-                                 <label className="block text-[10px] uppercase font-bold text-gray-400 mb-1">Price (¥)</label>
-                                 <input
-                                   type="number"
-                                   className="input py-2 text-sm !rounded-xl"
-                                   value={variant.price_jpy}
-                                   onChange={(e) => handleVariantChange(index, 'price_jpy', e.target.value)}
-                                 />
-                               </div>
-                              <div>
-                                 <label className="block text-[10px] uppercase font-bold text-gray-400 mb-1">Stock</label>
-                                 <input
-                                   type="number"
-                                   className="input py-2 text-sm !rounded-xl font-bold text-primary-600 bg-primary-50/30 dark:bg-primary-900/10"
-                                   value={variant.stock}
-                                   onChange={(e) => handleVariantChange(index, 'stock', e.target.value)}
-                                   required
-                                 />
-                               </div>
+                                <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">Stock Level</label>
+                                <input 
+                                  type="number" 
+                                  value={variant.stock} 
+                                  onChange={e => handleVariantChange(index, 'stock', e.target.value)}
+                                  className="input w-full !rounded-xl !py-2.5 text-sm font-bold bg-primary-50/30 dark:bg-primary-900/10 text-primary-600" 
+                                  placeholder="1000" 
+                                  required
+                                />
+                              </div>
                             </div>
                           </div>
                         </div>
-                      ))}
-                      
-                      <button 
-                        type="button" 
-                        onClick={addVariant}
-                        className="w-full py-4 border-2 border-dashed border-gray-200 dark:border-gray-800 rounded-2xl text-gray-400 hover:text-primary-500 hover:border-primary-400 hover:bg-primary-50/30 transition-all flex items-center justify-center gap-2 font-bold text-sm"
-                      >
-                        <Plus size={18} />
-                        Add Another Variation
-                      </button>
-                    </div>
-                  ) : null}
+                      </div>
+                    ))}
+                    
+                    <button 
+                      type="button" 
+                      onClick={addVariant}
+                      className="w-full py-4 border-2 border-dashed border-gray-200 dark:border-gray-800 rounded-[2rem] text-gray-400 font-bold hover:border-primary-400 hover:text-primary-500 hover:bg-primary-50/5 transition-all flex items-center justify-center gap-2"
+                    >
+                      <Plus size={20} />
+                      Add Another Variation
+                    </button>
+                  </div>
                 </div>
               </div>
 

@@ -17,6 +17,8 @@ export const HomePage: React.FC = () => {
   const [selectedProductForVariant, setSelectedProductForVariant] = useState<Product | null>(null);
   const [fullScreenImageUrl, setFullScreenImageUrl] = useState<string | null>(null);
   const addItem = useCartStore((state) => state.addItem);
+  const setDirectPurchase = useCartStore((state) => state.setDirectPurchase);
+  const setCartOpen = useCartStore((state) => state.setCartOpen);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -375,40 +377,64 @@ export const HomePage: React.FC = () => {
                       )}
                     </div>
                     
-                    <div className="flex items-center justify-between mt-auto">
-                      <div className="flex flex-col">
+                    <div className="mt-auto space-y-3">
+                      <div className="flex items-center justify-between">
                         <span className="text-xl font-black text-gray-900 dark:text-white">
                           {product.has_variants && Number(product.min_price) !== Number(product.max_price)
                             ? `₱${Number(product.min_price).toLocaleString()} - ${Number(product.max_price).toLocaleString()}`
                             : `₱${Number(product.min_price || product.price_php).toLocaleString()}`
                           }
                         </span>
-                        {product.has_variants && (
-                          <span className="text-[9px] font-black uppercase text-gray-400 tracking-tighter mt-0.5">Click to select options</span>
-                        )}
                       </div>
                       
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          if (product.has_variants) {
-                            setSelectedProductForVariant(product);
-                          } else {
-                            addItem({
-                              id: String(product.id),
-                              name: product.name,
-                              pricePhp: Number(product.price_php),
-                              imageUrl: product.image_path,
-                              category: product.category_name,
-                              description: product.description,
-                              stock: Number(product.stock)
-                            });
-                          }
-                        }}
-                        className="w-12 h-12 rounded-2xl bg-gray-50 dark:bg-dark-surfaceAlt hover:bg-[#d62b70] hover:text-white text-gray-400 flex items-center justify-center transition-all duration-300 shadow-inner"
-                      >
-                        {product.has_variants ? <Filter size={20} /> : <ShoppingCart size={20} />}
-                      </button>
+                      <div className="grid grid-cols-2 gap-2">
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (product.has_variants) {
+                              setSelectedProductForVariant(product);
+                            } else {
+                              addItem({
+                                id: String(product.id),
+                                name: product.name,
+                                pricePhp: Number(product.price_php),
+                                imageUrl: product.image_path,
+                                category: product.category_name,
+                                description: product.description,
+                                stock: Number(product.stock)
+                              });
+                            }
+                          }}
+                          className="flex items-center justify-center gap-1.5 py-2.5 rounded-xl bg-[#fff0f5] text-[#d62b70] text-[11px] font-bold hover:bg-[#ffe4ee] transition-all border border-[#d62b70]/20"
+                        >
+                          <ShoppingCart size={14} />
+                          Add to Cart
+                        </button>
+                        
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (product.has_variants) {
+                              setSelectedProductForVariant(product);
+                            } else {
+                              setDirectPurchase({
+                                id: String(product.id),
+                                name: product.name,
+                                pricePhp: Number(product.price_php),
+                                imageUrl: product.image_path,
+                                category: product.category_name,
+                                description: product.description,
+                                stock: Number(product.stock),
+                                quantity: 1
+                              });
+                              setCartOpen(true);
+                            }
+                          }}
+                          className="flex items-center justify-center gap-1.5 py-2.5 rounded-xl bg-[#d62b70] text-white text-[11px] font-bold hover:bg-[#c02663] transition-all shadow-sm"
+                        >
+                          Buy It Now
+                        </button>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -571,9 +597,27 @@ export const HomePage: React.FC = () => {
               imageUrl: variant.image_path || selectedProductForVariant.image_path,
               category: selectedProductForVariant.category_name,
               description: selectedProductForVariant.description,
-              stock: Number(variant.stock)
+              stock: Number(variant.stock),
+              variantId: Number(variant.id),
+              variantName: variant.variant_name
             });
             setSelectedProductForVariant(null);
+          }}
+          onBuyNow={(variant) => {
+            setDirectPurchase({
+              id: String(selectedProductForVariant.id),
+              name: selectedProductForVariant.name,
+              pricePhp: Number(variant.price_php),
+              imageUrl: variant.image_path || selectedProductForVariant.image_path,
+              category: selectedProductForVariant.category_name,
+              description: selectedProductForVariant.description,
+              stock: Number(variant.stock),
+              variantId: variant.id,
+              variantName: variant.variant_name,
+              quantity: 1
+            });
+            setSelectedProductForVariant(null);
+            setCartOpen(true);
           }}
         />
       )}

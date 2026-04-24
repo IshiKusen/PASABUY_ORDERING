@@ -16,25 +16,72 @@ router.post('/google', async (req, res) => {
   try {
     const { google_id, email, full_name, avatar_url, phone, address, lat, lng } = req.body;
 
-    if (!email) return res.status(400).json({ error: 'Email is required' });
-
-    // Supabase Upsert - Use Service Role power if needed, but here we use Anon
-    const { data: user, error } = await supabase
+    let user;
+    
+    // 1. Try to find user by google_id
+    const { data: byGoogleId } = await supabase
       .from('users')
-      .upsert({
-        google_id,
-        email,
-        full_name,
-        avatar_url,
-        phone,
-        address,
-        lat,
-        lng
-      }, { onConflict: 'email' })
-      .select()
+      .select('*')
+      .eq('google_id', google_id)
       .single();
 
-    if (error) throw error;
+    if (byGoogleId) {
+      // Update existing user
+      const { data: updated } = await supabase
+        .from('users')
+        .update({ 
+          email: email || byGoogleId.email,
+          full_name: full_name || byGoogleId.full_name,
+          avatar_url: avatar_url || byGoogleId.avatar_url,
+          phone: phone || byGoogleId.phone,
+          address: address || byGoogleId.address,
+          lat: lat || byGoogleId.lat,
+          lng: lng || byGoogleId.lng
+        })
+        .eq('id', byGoogleId.id)
+        .select()
+        .single();
+      user = updated;
+    } else if (email) {
+      // 2. Try to find user by email
+      const { data: byEmail } = await supabase
+        .from('users')
+        .select('*')
+        .eq('email', email)
+        .single();
+
+      if (byEmail) {
+        // Link google_id to existing email account
+        const { data: updated } = await supabase
+          .from('users')
+          .update({ google_id, avatar_url: avatar_url || byEmail.avatar_url })
+          .eq('id', byEmail.id)
+          .select()
+          .single();
+        user = updated;
+      }
+    }
+
+    if (!user) {
+      // 3. Create new user
+      const { data: newUser, error: insertError } = await supabase
+        .from('users')
+        .insert({
+          google_id,
+          email: email || `${google_id}@google.social`,
+          full_name,
+          avatar_url,
+          phone,
+          address,
+          lat,
+          lng
+        })
+        .select()
+        .single();
+      
+      if (insertError) throw insertError;
+      user = newUser;
+    }
 
     const token = jwt.sign(
       { id: user.id, email: user.email, role: user.role },
@@ -57,24 +104,72 @@ router.post('/facebook', async (req, res) => {
   try {
     const { facebook_id, email, full_name, avatar_url, phone, address, lat, lng } = req.body;
 
-    if (!email) return res.status(400).json({ error: 'Email is required' });
+    let user;
 
-    const { data: user, error } = await supabase
+    // 1. Try to find user by facebook_id
+    const { data: byFbId } = await supabase
       .from('users')
-      .upsert({
-        facebook_id,
-        email,
-        full_name,
-        avatar_url,
-        phone,
-        address,
-        lat,
-        lng
-      }, { onConflict: 'email' })
-      .select()
+      .select('*')
+      .eq('facebook_id', facebook_id)
       .single();
 
-    if (error) throw error;
+    if (byFbId) {
+      // Update existing user
+      const { data: updated } = await supabase
+        .from('users')
+        .update({ 
+          email: email || byFbId.email,
+          full_name: full_name || byFbId.full_name,
+          avatar_url: avatar_url || byFbId.avatar_url,
+          phone: phone || byFbId.phone,
+          address: address || byFbId.address,
+          lat: lat || byFbId.lat,
+          lng: lng || byFbId.lng
+        })
+        .eq('id', byFbId.id)
+        .select()
+        .single();
+      user = updated;
+    } else if (email) {
+      // 2. Try to find user by email
+      const { data: byEmail } = await supabase
+        .from('users')
+        .select('*')
+        .eq('email', email)
+        .single();
+
+      if (byEmail) {
+        // Link facebook_id to existing email account
+        const { data: updated } = await supabase
+          .from('users')
+          .update({ facebook_id, avatar_url: avatar_url || byEmail.avatar_url })
+          .eq('id', byEmail.id)
+          .select()
+          .single();
+        user = updated;
+      }
+    }
+
+    if (!user) {
+      // 3. Create new user
+      const { data: newUser, error: insertError } = await supabase
+        .from('users')
+        .insert({
+          facebook_id,
+          email: email || `${facebook_id}@facebook.social`,
+          full_name,
+          avatar_url,
+          phone,
+          address,
+          lat,
+          lng
+        })
+        .select()
+        .single();
+      
+      if (insertError) throw insertError;
+      user = newUser;
+    }
 
     const token = jwt.sign(
       { id: user.id, email: user.email, role: user.role },

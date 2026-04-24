@@ -268,7 +268,7 @@ export const AuthModal: React.FC = () => {
     if (formData.mobile.length !== 11) return;
     setLoading(true);
     try {
-      const res = await authApi.loginWithGoogle({
+      const signupData = {
         google_id: authMethod === 'google' ? googleData?.sub : null,
         facebook_id: authMethod === 'facebook' ? facebookData?.id : null,
         full_name: formData.fullName,
@@ -278,7 +278,12 @@ export const AuthModal: React.FC = () => {
         lat: formData.lat,
         lng: formData.lng,
         avatar_url: (authMethod === 'google' ? googleData?.picture : (authMethod === 'facebook' ? facebookData?.picture : `https://ui-avatars.com/api/?name=${encodeURIComponent(formData.fullName)}`))
-      });
+      };
+
+      const res = await (authMethod === 'facebook' 
+        ? authApi.loginWithFacebook(signupData) 
+        : authApi.loginWithGoogle(signupData));
+        
       setToken(res.token);
       login({ ...res.user, id: String(res.user.id), fullName: res.user.full_name, mobile: res.user.phone });
       handleClose();

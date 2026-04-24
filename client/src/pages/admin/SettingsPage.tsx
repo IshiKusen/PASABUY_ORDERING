@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Calendar, Save, Clock, Info, History, DollarSign, MessageSquare, Loader2, RefreshCw } from 'lucide-react';
+import { Calendar, Save, Clock, Info, History, DollarSign, MessageSquare, Loader2, RefreshCw, Package } from 'lucide-react';
 import { configApi, ordersApi } from '../../utils/api';
 
 export const SettingsPage: React.FC = () => {

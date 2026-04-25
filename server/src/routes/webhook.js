@@ -32,6 +32,7 @@ router.get('/', (req, res) => {
 // =============================================
 router.post('/', async (req, res) => {
   const body = req.body;
+  console.log('📬 Webhook Received Event:', JSON.stringify(body, null, 2));
 
   // Verify this is a page subscription event
   if (body.object !== 'page') {

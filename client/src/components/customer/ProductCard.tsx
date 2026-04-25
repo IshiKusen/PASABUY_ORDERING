@@ -31,20 +31,44 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, onVariantClic
 
   const currentSlide = slides[currentImageIndex] || slides[0];
 
-  const nextImage = (e: React.MouseEvent) => {
-    e.stopPropagation();
+  const [touchStart, setTouchStart] = useState<number | null>(null);
+
+  const nextImage = (e?: React.MouseEvent | React.TouchEvent) => {
+    e?.stopPropagation();
     setCurrentImageIndex((prev) => (prev + 1) % slides.length);
   };
 
-  const prevImage = (e: React.MouseEvent) => {
-    e.stopPropagation();
+  const prevImage = (e?: React.MouseEvent | React.TouchEvent) => {
+    e?.stopPropagation();
     setCurrentImageIndex((prev) => (prev - 1 + slides.length) % slides.length);
+  };
+
+  const handleTouchStart = (e: React.TouchEvent) => {
+    setTouchStart(e.targetTouches[0].clientX);
+  };
+
+  const handleTouchEnd = (e: React.TouchEvent) => {
+    if (touchStart === null) return;
+    const touchEnd = e.changedTouches[0].clientX;
+    const diff = touchStart - touchEnd;
+
+    // Threshold for swipe (e.g., 50px)
+    if (diff > 50) {
+      nextImage();
+    } else if (diff < -50) {
+      prevImage();
+    }
+    setTouchStart(null);
   };
 
   return (
     <div className="group bg-white dark:bg-dark-surface rounded-[2.5rem] overflow-hidden border border-gray-100 dark:border-gray-800 hover:shadow-2xl hover:shadow-pink-200/20 dark:hover:shadow-none hover:-translate-y-2 transition-all duration-500 flex flex-col h-full relative">
       {/* Image Slider Section */}
-      <div className="relative aspect-square overflow-hidden group/slider">
+      <div 
+        className="relative aspect-square overflow-hidden group/slider"
+        onTouchStart={handleTouchStart}
+        onTouchEnd={handleTouchEnd}
+      >
         <div 
           className="w-full h-full cursor-zoom-in"
           onClick={() => onImageClick(currentSlide.url)}
@@ -52,7 +76,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, onVariantClic
           <img
             src={currentSlide.url}
             alt={product.name}
-            className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700"
+            className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700 pointer-events-none select-none"
             loading="lazy"
           />
         </div>

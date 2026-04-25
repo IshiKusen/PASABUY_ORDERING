@@ -20,12 +20,11 @@ async function getSystemContext() {
     const { data: categories } = await supabase.from('categories').select('name');
     const categoryList = categories?.map(c => c.name).join(', ') || 'General';
 
-    // 3. Fetch Featured Products (Limited to 15 for context window)
+    // 3. Fetch Active Products
     const { data: products } = await supabase
       .from('products')
       .select('name, price_php, stock')
-      .eq('is_featured', true)
-      .gt('stock', 0)
+      .eq('is_active', true)
       .limit(15);
 
     const productList = products?.map(p => `- ${p.name} (₱${p.price_php})`).join('\n') || 'No featured items at the moment.';

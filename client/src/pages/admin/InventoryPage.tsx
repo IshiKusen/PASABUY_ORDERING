@@ -447,7 +447,6 @@ export const InventoryPage: React.FC = () => {
           Html5QrcodeSupportedFormats.QR_CODE,
         ],
         verbose: false,
-        // Use native barcode detector if available (experimental but very powerful)
         experimentalFeatures: {
           useBarCodeDetectorIfSupported: true,
         },

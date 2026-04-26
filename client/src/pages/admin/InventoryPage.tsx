@@ -278,6 +278,11 @@ export const InventoryPage: React.FC = () => {
   // The scanner instance will be managed within the Live Camera lifecycle
   const barcodeScannerRef = useRef<Html5Qrcode | null>(null);
 
+  useEffect(() => {
+    window.addEventListener("paste", handlePaste);
+    return () => window.removeEventListener("paste", handlePaste);
+  }, [isModalOpen, targetVariantIndex, formVariants]);
+
   // Flashlight Toggle
   const toggleTorch = async () => {
     if (!barcodeScannerRef.current || !hasTorch) return;
@@ -330,12 +335,15 @@ export const InventoryPage: React.FC = () => {
     }
   };
 
-  const handlePaste = async (e: React.ClipboardEvent | ClipboardItems) => {
+  const handlePaste = async (e: any) => {
+    // If it's a global window event, we check if modal is open
+    if (!isModalOpen) return;
+
     let items;
-    if ("clipboardData" in e) {
+    if (e.clipboardData) {
       items = e.clipboardData.items;
     } else {
-      // Mobile paste logic
+      // Async clipboard fallback
       try {
         const clipboardItems = await navigator.clipboard.read();
         for (const item of clipboardItems) {
@@ -343,26 +351,13 @@ export const InventoryPage: React.FC = () => {
             if (type.startsWith("image/")) {
               const blob = await item.getType(type);
               const file = new File([blob], "pasted_image.png", { type });
-
-              if (targetVariantIndex !== null) {
-                const updated = [...formVariants];
-                updated[targetVariantIndex] = {
-                  ...updated[targetVariantIndex],
-                  image_file: file,
-                  image_preview: URL.createObjectURL(file),
-                };
-                setFormVariants(updated);
-              } else {
-                setFormImageFile(file);
-                setFormImagePreview(URL.createObjectURL(file));
-              }
+              processPastedFile(file);
               return;
             }
           }
         }
-        alert("No image found in clipboard.");
       } catch (err) {
-        console.error("Paste failed:", err);
+        // Fallback for browsers that don't support read()
       }
       return;
     }
@@ -372,23 +367,29 @@ export const InventoryPage: React.FC = () => {
         if (items[i].type.indexOf("image") !== -1) {
           const file = items[i].getAsFile();
           if (file) {
-            const preview = URL.createObjectURL(file);
-            if (targetVariantIndex !== null) {
-              const updated = [...formVariants];
-              updated[targetVariantIndex] = {
-                ...updated[targetVariantIndex],
-                image_file: file,
-                image_preview: preview,
-              };
-              setFormVariants(updated);
-            } else {
-              setFormImageFile(file);
-              setFormImagePreview(preview);
-            }
+            processPastedFile(file);
           }
         }
       }
     }
+  };
+
+  const processPastedFile = (file: File) => {
+    const preview = URL.createObjectURL(file);
+    if (targetVariantIndex !== null) {
+      const updated = [...formVariants];
+      updated[targetVariantIndex] = {
+        ...updated[targetVariantIndex],
+        image_file: file,
+        image_preview: preview,
+      };
+      setFormVariants(updated);
+    } else {
+      setFormImageFile(file);
+      setFormImagePreview(preview);
+    }
+    setScanTip("🖼️ Image pasted successfully!");
+    setTimeout(() => setScanTip("💡 TIP: You can paste images from clipboard!"), 3000);
   };
 
   // Unified Live Camera & Scanner Logic

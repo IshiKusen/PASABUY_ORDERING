@@ -17,7 +17,9 @@ import {
   Barcode,
   Keyboard,
   RefreshCw,
+  FileSpreadsheet,
 } from "lucide-react";
+import * as XLSX from "xlsx";
 import { Html5Qrcode, Html5QrcodeSupportedFormats } from "html5-qrcode";
 import { productsApi, categoriesApi, configApi } from "../../utils/api";
 import { getImageUrl } from "../../utils/image";
@@ -87,6 +89,7 @@ export const InventoryPage: React.FC = () => {
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
+  const excelInputRef = useRef<HTMLInputElement>(null);
   const [targetVariantIndex, setTargetVariantIndex] = useState<number | null>(
     null,
   );
@@ -333,6 +336,63 @@ export const InventoryPage: React.FC = () => {
         setFormImagePreview(URL.createObjectURL(file));
       }
     }
+  };
+
+  const handleExcelImport = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      try {
+        const data = event.target?.result;
+        const workbook = XLSX.read(data, { type: "binary" });
+        const firstSheetName = workbook.SheetNames[0];
+        const worksheet = workbook.Sheets[firstSheetName];
+        const jsonData = XLSX.utils.sheet_to_json(worksheet);
+
+        if (jsonData.length === 0) {
+          alert("Excel file is empty or invalid.");
+          return;
+        }
+
+        const rows = jsonData as any[];
+        const firstRow = rows[0];
+
+        // Fill main product fields
+        setFormName(String(firstRow["Product Name"] || ""));
+        
+        // Find category
+        const categoryName = firstRow["Category"];
+        if (categoryName) {
+          const found = categories.find(c => c.name.toLowerCase() === String(categoryName).toLowerCase());
+          if (found) setFormCategory(String(found.id));
+        }
+
+        setFormBarcode(String(firstRow["Barcode"] || ""));
+        setFormImagePreview(String(firstRow["Image URL"] || ""));
+        setFormImageFile(null);
+
+        // Process variants
+        const variants: Variant[] = rows.map(row => ({
+          variant_name: String(row["Variant Name"] || "Default"),
+          price_php: String(row["Price PHP"] || ""),
+          price_jpy: String(row["Price JPY"] || ""),
+          stock: String(row["Stock"] || defaultStock),
+          barcode: String(row["Barcode"] || ""),
+          image_preview: String(row["Image URL"] || ""),
+        }));
+
+        setFormVariants(variants);
+        setScanTip("📊 Excel imported successfully!");
+        setTimeout(() => setScanTip("💡 TIP: You can paste images from clipboard!"), 3000);
+      } catch (err) {
+        console.error("Excel parse error:", err);
+        alert("Failed to parse Excel file. Please check the column names.");
+      }
+    };
+    reader.readAsBinaryString(file);
+    e.target.value = ""; // reset
   };
 
   const handlePaste = async (e: any) => {
@@ -1070,12 +1130,31 @@ export const InventoryPage: React.FC = () => {
                   Fill in the details below to save to inventory.
                 </p>
               </div>
-              <button
-                onClick={handleCloseModal}
-                className="p-2 hover:bg-gray-200 dark:hover:bg-gray-800 rounded-full transition-colors"
-              >
-                <X size={20} />
-              </button>
+              <div className="flex items-center gap-2">
+                <input
+                  type="file"
+                  ref={excelInputRef}
+                  onChange={handleExcelImport}
+                  accept=".xlsx, .xls, .csv"
+                  className="hidden"
+                />
+                {!editingProduct && (
+                  <button
+                    onClick={() => excelInputRef.current?.click()}
+                    className="flex items-center gap-2 px-3 py-1.5 bg-green-50 dark:bg-green-900/20 text-green-600 dark:text-green-400 rounded-xl text-xs font-bold hover:bg-green-100 transition-all border border-green-200/50 dark:border-green-500/20"
+                    title="Import from Excel/CSV"
+                  >
+                    <FileSpreadsheet size={14} />
+                    <span>Import Excel</span>
+                  </button>
+                )}
+                <button
+                  onClick={handleCloseModal}
+                  className="p-2 hover:bg-gray-200 dark:hover:bg-gray-800 rounded-full transition-colors"
+                >
+                  <X size={20} />
+                </button>
+              </div>
             </div>
 
             <form
